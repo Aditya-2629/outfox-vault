@@ -1,0 +1,11 @@
+{
+  "apollo": [],
+  "hunter": [],
+  "apify": [],
+  "stats": {
+    "totalRequests": 0,
+    "successfulEnrichments": 0,
+    "failoversHandled": 0,
+    "startedAt": 1731388800000
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "outfox-cloud-vault",
+  "version": "1.0.0",
+  "description": "Production-grade, zero-dependency Multi-Account API Key Vault, Load Balancer & Auto-Failover Proxy for Apollo, Hunter, and Apify.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "lead-generation",
+    "apollo-api",
+    "hunter-io",
+    "apify",
+    "load-balancer",
+    "key-vault",
+    "proxy-pool",
+    "outreach"
+  ],
+  "author": "OutFox",
+  "license": "MIT"
+}

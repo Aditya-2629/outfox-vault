@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OutFox — Cloud Key Vault & Load Balancer</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="vault-app">
+      <!-- Top Navbar -->
+      <header class="vault-navbar">
+        <div class="nav-brand">
+          <div class="logo-circle">🦊</div>
+          <div class="brand-text">
+            <h1>OutFox Cloud Vault</h1>
+            <span class="brand-sub">Multi-Key Load Balancer & Auto-Failover Proxy</span>
+          </div>
+        </div>
+        <div class="nav-status">
+          <span class="live-dot"></span>
+          <span id="server-status-pill">Proxy Live on Port 4000</span>
+        </div>
+      </header>
+
+      <!-- Main Container -->
+      <main class="vault-main">
+        <!-- Live KPI Stats Grid -->
+        <section class="kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-lbl">Total Keys in Vault</span>
+            <span class="kpi-val" id="stat-total-keys">0</span>
+            <span class="kpi-sub">Across Apollo, Hunter, Apify</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-lbl">Active & Ready</span>
+            <span class="kpi-val text-orange" id="stat-active-keys">0</span>
+            <span class="kpi-sub">Available for instant routing</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-lbl">Enrichments Served</span>
+            <span class="kpi-val text-green" id="stat-total-requests">0</span>
+            <span class="kpi-sub">Processed by proxy engine</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-lbl">Failovers Handled</span>
+            <span class="kpi-val" id="stat-failovers">0</span>
+            <span class="kpi-sub">Auto-rotated on 429/402</span>
+          </div>
+        </section>
+
+        <!-- Provider Tabs -->
+        <section class="pool-section glass-card">
+          <div class="tabs-bar">
+            <button class="tab-btn active" data-provider="apollo">
+              <span>🚀 Apollo.io Pool</span>
+              <span class="tab-badge" id="badge-apollo">0</span>
+            </button>
+            <button class="tab-btn" data-provider="hunter">
+              <span>🎯 Hunter.io Pool</span>
+              <span class="tab-badge" id="badge-hunter">0</span>
+            </button>
+            <button class="tab-btn" data-provider="apify">
+              <span>⚡ Apify Scraper Pool</span>
+              <span class="tab-badge" id="badge-apify">0</span>
+            </button>
+          </div>
+
+          <!-- Pool Workspace -->
+          <div class="pool-body">
+            <!-- Left: Bulk Key Ingestion -->
+            <div class="ingest-col">
+              <h3 class="col-title" id="ingest-title">Add Apollo Keys</h3>
+              <p class="col-desc">
+                Paste unlimited keys from your accounts. The proxy sequentially load-balances every request and automatically failovers when monthly limits hit.
+              </p>
+
+              <textarea
+                id="input-bulk-keys"
+                class="key-textarea"
+                rows="7"
+                placeholder="Paste keys here (one per line or comma-separated):&#10;api_key_account_1&#10;api_key_account_2&#10;api_key_account_3"
+              ></textarea>
+
+              <button type="button" class="btn-orange" id="btn-add-keys">
+                ➕ Add Keys to Pool
+              </button>
+            </div>
+
+            <!-- Right: Health Table & Diagnostic Actions -->
+            <div class="table-col">
+              <div class="table-actions-head">
+                <div>
+                  <h3 class="col-title" id="pool-table-title">Apollo Keys Pool</h3>
+                  <span class="table-sub" id="pool-active-summary">0 Active · 0 Exhausted</span>
+                </div>
+                <div class="btn-group">
+                  <button type="button" class="btn-ghost" id="btn-test-all">
+                    ⚡ Live Test All
+                  </button>
+                  <button type="button" class="btn-danger-ghost" id="btn-clean-pool">
+                    🧹 Clean Dead/Exhausted
+                  </button>
+                </div>
+              </div>
+
+              <!-- Keys Table -->
+              <div class="table-viewport">
+                <table class="keys-table">
+                  <thead>
+                    <tr>
+                      <th>Key / Account</th>
+                      <th>Status</th>
+                      <th>Credits / Details</th>
+                      <th>Usage</th>
+                      <th style="text-align: right;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="keys-table-body">
+                    <tr>
+                      <td colspan="5" class="empty-row">No keys loaded in this pool yet.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- API Endpoint Reference Card -->
+        <section class="endpoints-card glass-card">
+          <div class="card-head">
+            <h3>🔗 OutFox Extension Integration Endpoint</h3>
+            <span class="badge-tag">Plug & Play</span>
+          </div>
+          <p class="endpoint-desc">
+            Your OutFox extension automatically calls this centralized proxy. Users will never see API keys, limits, or configurations — everything happens like pure magic!
+          </p>
+          <div class="endpoint-box">
+            <code>POST http://localhost:4000/api/enrich/waterfall</code>
+            <button class="btn-copy" id="btn-copy-endpoint">Copy</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

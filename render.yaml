@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: outfox-cloud-vault
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 18.20.4
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: CLIENT_API_KEY
+        generateValue: true
