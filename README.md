@@ -1,74 +1,46 @@
-# 🦊 OutFox Cloud Vault
+# 🦊 Vault
 
-> **Production-ready, zero-dependency Multi-Account API Key Vault, Load Balancer & Auto-Failover Proxy for Apollo.io, Hunter.io, and Apify.**
-
----
-
-## ⚡ What is OutFox Cloud Vault?
-If you have multiple accounts across Apollo.io, Hunter.io, or Apify (each with free monthly credits that refresh every 30 days), this microservice pools all those keys into an **active load-balanced array queue**:
-- **Sequential Round-Robin Load Balancing:** Distributes requests evenly across all active accounts so no single key gets rate-limited.
-- **Zero-Downtime Auto-Failover:** If a key hits `429 (Rate Limit)` or `402 (Monthly Cap Exhausted)`, it is automatically demoted to the back of the queue, and the next fresh key fulfills the lead within 50ms.
-- **Invisible Magic for Frontends:** Your extensions, scrapers, and web apps call a single master endpoint (`/api/enrich/waterfall`). Users never see API keys, accounts, or rate limits.
-- **Zero Dependencies:** Built entirely with native Node.js (`http`, `fs`, `crypto`, `fetch`). No heavy `node_modules` required.
+> **Standalone, zero-dependency Multi-Account API Key Vault, Load Balancer & Auto-Failover Proxy for Apollo.io, Hunter.io, and Apify on `https://vault.api.crafture.space/`.**
 
 ---
 
-## 🚀 1-Click Quickstart (Local Run in 5 Seconds)
+## ⚡ Architecture & Core Capabilities
+Pool multiple free or paid accounts across Apollo.io, Hunter.io, and Apify into an **active load-balanced array queue**:
+- **Sequential Round-Robin Load Balancing:** Distributes enrichment requests evenly across all active accounts so no single key gets rate-limited.
+- **Zero-Downtime Auto-Failover (<50ms):** When an account hits `429 (Rate Limit)` or `402 (Monthly Cap Exhausted)`, it is auto-demoted to cooldown, and the next fresh key fulfills the request in under 50ms.
+- **Default Security:** 
+  - Admin Passkey: `007_haiSecret` (protects `/admin/vault/*` and dashboard UI via `#auth-lock-overlay`).
+  - Client API Key: `007_haiSecret` (enforced on all `/api/enrich/*` endpoints via header `x-api-key: 007_haiSecret`).
+- **Interactive In-App Documentation Modal (`#modal-docs-overlay`):**
+  - Opened via `📖 API Docs` in the navbar.
+  - Pre-populated code components for cURL, JavaScript, Python, and the OutFox Chrome Extension.
+  - 1-click copy with instant confirmation.
+- **Crisp Pure White UI Design:**
+  - Surfaces: `#FFFFFF`
+  - Canvas: `#F8FAFC`
+  - Accents: `#FF6B00` Fox Orange
+  - Zero AI-slop design system.
+
+---
+
+## 🚀 Quickstart
 
 ```bash
-# 1. Clone or extract the repo
-cd outfox-vault
-
-# 2. Run the server (Zero npm install needed!)
+# Start the server (Zero external dependencies needed!)
 node server.js
 ```
 
-Open your browser at **`http://localhost:4000/`** to access the Private Admin Dashboard.
+Admin Web UI: `http://localhost:4000/` (or `https://vault.api.crafture.space/`)
 
 ---
 
-## ☁️ 1-Click Deployment to Render
+## 🧪 Verification Commands
 
-1. Create a new GitHub repository (e.g. `outfox-cloud-vault`) and push this folder:
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: initial commit of outfox cloud vault"
-   git branch -M main
-   git remote add origin https://github.com/<your-username>/outfox-cloud-vault.git
-   git push -u origin main
-   ```
-2. Log in to [Render.com](https://render.com) and click **New + ➔ Web Service**.
-3. Select your GitHub repository.
-4. Render will auto-detect the configuration:
-   - **Runtime:** `Node`
-   - **Build Command:** *(Leave empty)*
-   - **Start Command:** `node server.js`
-5. *(Optional)* Add Environment Variables in Render:
-   - `ADMIN_API_KEY`: A secret password to protect your admin dashboard.
-   - `CLIENT_API_KEY`: An API token for extensions and scrapers to authenticate.
-6. Click **Deploy Web Service**! You'll get a public live URL: `https://outfox-cloud-vault.onrender.com`.
-
----
-
-## 📊 Private Admin Dashboard Features
-
-Navigate to `http://localhost:4000` (or your live Render URL):
-- **Bulk Key Ingestion:** Paste 10, 20, 50 keys at once (one per line or comma-separated).
-- **1-Click Live Test All:** Probes real Apollo/Hunter/Apify APIs to test validity and fetch remaining search credits.
-- **1-Click Clean:** Purges dead or expired keys with one click.
-- **Diagnostic Table:** Shows masked keys (`sk_••••1234`), status (`🟢 Active`, `🟡 Cooldown`, `🔴 Dead`, `⚠️ Limit Reached`), usage count, and last active timestamp.
-
----
-
-## 🔗 Universal Endpoints Summary
-
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/api/enrich/waterfall` | `POST` | **Master Endpoint:** Cascades Hunter ➔ Apollo ➔ Pattern Generator with auto-key rotation. |
-| `/api/enrich/apollo` | `POST` | Direct Apollo.io People Match using rotated Apollo keys pool. |
-| `/api/enrich/hunter` | `POST` | Direct Hunter.io Email Finder using rotated Hunter keys pool. |
-| `/api/scrape/apify` | `POST` | Direct Apify Actor Trigger using rotated Apify tokens pool. |
-| `/health` | `GET` | Health check monitor for Render, Railway, or UptimeRobot. |
-
-👉 **Read `DOCS.md` for complete API payload specifications and copy-pasteable code components (cURL, JavaScript, Python, Chrome Extension).**
+```bash
+node --check server.js
+node --check engine/key-pool.js
+node --check engine/apollo-adapter.js
+node --check engine/hunter-adapter.js
+node --check storage/vault-storage.js
+node --check public/app.js
+```

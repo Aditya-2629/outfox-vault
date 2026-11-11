@@ -1,22 +1,35 @@
-# 📖 OutFox Cloud Vault — Complete API Reference & Integration Guide
+# 📖 Vault — Production API Reference & Integration Guide
 
-Welcome to the official developer documentation for **OutFox Cloud Vault**. This guide provides ready-to-copy components and integration examples for any web application, scraper, bot, or Chrome extension.
+Welcome to the official developer documentation for **Vault** (`https://vault.api.crafture.space/`). This guide provides ready-to-copy components and integration examples for any web application, scraper, bot, or Chrome extension.
 
 ---
 
-## 🔒 Authentication
+## 🔒 Authentication & Passkeys
 
-If you configure `CLIENT_API_KEY` in your `.env` (or Render Environment Variables), pass it in every request using either:
-- **Header:** `x-api-key: your_client_api_key`
-- **Bearer Token:** `Authorization: Bearer your_client_api_key`
+All client enrichment requests require the client passkey passed in either the `x-api-key` header or Bearer token:
+- **Header:** `x-api-key: 007_haiSecret`
+- **Bearer Token:** `Authorization: Bearer 007_haiSecret`
 
-*(If `CLIENT_API_KEY` is not set, endpoints are open for local development).*
+All administrative `/admin/vault/*` endpoints and dashboard UI are secured via:
+- **Header:** `x-admin-key: 007_haiSecret`
+- **Dashboard UI:** Unlocked via `#auth-lock-overlay`
 
 ---
 
 ## 1. Master Waterfall Endpoint: `POST /api/enrich/waterfall`
 
-The primary endpoint for lead enrichment. Automatically runs the **Hunter.io ➔ Apollo.io ➔ Corporate Pattern** waterfall with multi-key auto-rotation.
+The primary zero-downtime endpoint for lead enrichment. Automatically runs the **Hunter.io ➔ Apollo.io ➔ Corporate Pattern** waterfall with multi-account auto-rotation in under 50ms.
+
+### Endpoint:
+```
+POST https://vault.api.crafture.space/api/enrich/waterfall
+```
+
+### Request Headers:
+```http
+Content-Type: application/json
+x-api-key: 007_haiSecret
+```
 
 ### Request Body (`application/json`):
 ```json
@@ -48,7 +61,12 @@ The primary endpoint for lead enrichment. Automatically runs the **Hunter.io ➔
 
 ## 2. Apollo Direct Endpoint: `POST /api/enrich/apollo`
 
-Routes directly to the active Apollo.io key pool. Extracts verified emails, direct phone numbers, and job titles.
+Routes directly to the active Apollo.io key pool. Extracts verified emails, direct phone numbers, and job titles with round-robin rotation.
+
+### Endpoint:
+```
+POST https://vault.api.crafture.space/api/enrich/apollo
+```
 
 ### Request Body:
 ```json
@@ -65,7 +83,12 @@ Routes directly to the active Apollo.io key pool. Extracts verified emails, dire
 
 ## 3. Hunter Direct Endpoint: `POST /api/enrich/hunter`
 
-Routes directly to the active Hunter.io key pool. Ideal for domain-level email finding and verification scores.
+Routes directly to the active Hunter.io key pool. Domain-level email finding and verification scores with automatic credit diagnostics.
+
+### Endpoint:
+```
+POST https://vault.api.crafture.space/api/enrich/hunter
+```
 
 ### Request Body:
 ```json
@@ -78,146 +101,137 @@ Routes directly to the active Hunter.io key pool. Ideal for domain-level email f
 
 ---
 
-## 4. Apify Scraper Endpoint: `POST /api/scrape/apify`
+## 4. Apify Scraper Trigger: `POST /api/scrape/apify`
 
-Triggers Apify actors with automated token rotation across your Apify accounts pool.
+Triggers Apify Actors using pooled tokens with automatic rotation.
+
+### Endpoint:
+```
+POST https://vault.api.crafture.space/api/scrape/apify
+```
 
 ### Request Body:
 ```json
 {
-  "actorId": "apify/web-scraper",
+  "actorId": "apify/instagram-scraper",
   "input": {
-    "runMode": "PRODUCTION",
-    "startUrls": [{ "url": "https://example.com" }]
+    "directUrls": ["https://www.instagram.com/openai/"]
   }
 }
 ```
 
 ---
 
-## 💻 Ready-to-Copy Integration Components
+## 5. Health Check Endpoint: `GET /health`
 
-### A. JavaScript / TypeScript (`fetch`):
-```javascript
-async function enrichLead(lead) {
-  const VAULT_URL = 'http://localhost:4000'; // Replace with your Render URL
-  const CLIENT_KEY = 'outfox_client_key_2026'; // Optional
+Public health check for uptime monitors, Render, Railway, and Docker container healthchecks.
 
-  const res = await fetch(`${VAULT_URL}/api/enrich/waterfall`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': CLIENT_KEY,
-    },
-    body: JSON.stringify({
-      firstName: lead.firstName,
-      lastName: lead.lastName,
-      fullName: lead.fullName,
-      domain: lead.companyDomain || lead.domain,
-      company: lead.companyName,
-      linkedinUrl: lead.linkedinUrl,
-    }),
-  });
+### Endpoint:
+```
+GET https://vault.api.crafture.space/health
+```
 
-  const json = await res.json();
-  if (json.ok && json.data?.email) {
-    console.log('Verified Email:', json.data.email);
-    console.log('Phone Number:', json.data.phone);
-    console.log('Provider Used:', json.data.provider);
-    return json.data;
-  }
-  return null;
+### Response:
+```json
+{
+  "status": "healthy",
+  "service": "Vault",
+  "domain": "vault.api.crafture.space",
+  "uptime": 128.45,
+  "timestamp": 1731388800000
 }
 ```
 
 ---
 
-### B. Python (`requests`):
-```python
-import requests
+## 6. Ready-to-Copy Client Implementations
 
-def enrich_lead(first_name, last_name, domain, company=""):
-    vault_url = "http://localhost:4000/api/enrich/waterfall"
-    headers = {
-        "Content-Type": "application/json",
-        "x-api-key": "outfox_client_key_2026"
-    }
-    payload = {
-        "firstName": first_name,
-        "lastName": last_name,
-        "domain": domain,
-        "company": company
-    }
-
-    response = requests.post(vault_url, json=payload, headers=headers)
-    if response.status_code == 200:
-        data = response.json().get("data", {})
-        print(f"Discovered: {data.get('email')} (Phone: {data.get('phone')})")
-        return data
-    return None
-
-# Test Run
-enrich_lead("Tim", "Cook", "apple.com", "Apple")
-```
-
----
-
-### C. cURL CLI:
+### cURL
 ```bash
-curl -X POST "http://localhost:4000/api/enrich/waterfall" \
+curl -X POST "https://vault.api.crafture.space/api/enrich/waterfall" \
   -H "Content-Type: application/json" \
-  -H "x-api-key: outfox_client_key_2026" \
+  -H "x-api-key: 007_haiSecret" \
   -d '{
-    "firstName": "Elon",
-    "lastName": "Musk",
-    "domain": "tesla.com"
+    "firstName": "Satya",
+    "lastName": "Nadella",
+    "domain": "microsoft.com",
+    "company": "Microsoft",
+    "linkedinUrl": "https://www.linkedin.com/in/satyanadella"
   }'
 ```
 
----
-
-### D. OutFox Chrome Extension Integration (`extension/src/background/enrich.js`):
-To connect OutFox extension to your deployed Cloud Vault, simply configure `vaultUrl`:
-
+### JavaScript / TypeScript
 ```javascript
-// extension/src/background/enrich.js
-export async function lookupEmail(profile, company) {
-  const VAULT_URL = 'https://outfox-cloud-vault.onrender.com'; // Your live Render URL
+const response = await fetch('https://vault.api.crafture.space/api/enrich/waterfall', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '007_haiSecret'
+  },
+  body: JSON.stringify({
+    firstName: 'Satya',
+    lastName: 'Nadella',
+    domain: 'microsoft.com',
+    company: 'Microsoft',
+    linkedinUrl: 'https://www.linkedin.com/in/satyanadella'
+  })
+});
+
+const result = await response.json();
+console.log('Enrichment Result:', result.data);
+```
+
+### Python
+```python
+import requests
+
+url = "https://vault.api.crafture.space/api/enrich/waterfall"
+headers = {
+    "Content-Type": "application/json",
+    "x-api-key": "007_haiSecret"
+}
+payload = {
+    "firstName": "Satya",
+    "lastName": "Nadella",
+    "domain": "microsoft.com",
+    "company": "Microsoft",
+    "linkedinUrl": "https://www.linkedin.com/in/satyanadella"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+data = response.json()
+print("Enrichment Result:", data.get("data"))
+```
+
+### OutFox Chrome Extension Dispatcher
+```javascript
+async function enrichLeadViaVault(lead) {
+  const VAULT_ENDPOINT = 'https://vault.api.crafture.space/api/enrich/waterfall';
+  const VAULT_KEY = '007_haiSecret';
 
   try {
-    const res = await fetch(`${VAULT_URL}/api/enrich/waterfall`, {
+    const res = await fetch(VAULT_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': VAULT_KEY
+      },
       body: JSON.stringify({
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        fullName: profile.fullName,
-        domain: profile.companyDomain || company.website,
-        company: company.name || profile.companyName,
-        linkedinUrl: profile.publicId ? `https://linkedin.com/in/${profile.publicId}` : undefined,
-      }),
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        fullName: lead.fullName,
+        domain: lead.domain,
+        company: lead.company,
+        linkedinUrl: lead.linkedinUrl
+      })
     });
 
     const json = await res.json();
-    if (json.ok && json.data?.email) {
-      return json.data;
-    }
+    if (!json.ok) throw new Error(json.error || 'Vault enrichment failed');
+    return json.data;
   } catch (err) {
-    console.warn('[Enrichment] Vault error:', err.message);
+    console.error('[OutFox Vault] Failover error:', err);
+    return null;
   }
-  return { provider: 'none', email: null };
 }
 ```
-
----
-
-## 🛠️ Error Codes & Failover Matrix
-
-The engine handles HTTP error codes automatically behind the scenes:
-
-| Error Code | HTTP Status | Vault Engine Behavior |
-| :--- | :--- | :--- |
-| **`RATE_LIMITED`** | `429` | Demotes failing key to `cooldown` for 15 mins. Rotates to next key instantly. |
-| **`PAYMENT_REQUIRED`** | `402` | Flags key as `exhausted` (monthly cap reached). Rotates to next account. |
-| **`UNAUTHORIZED`** | `401` | Flags key as `dead` (revoked/invalid). Purges from rotation. |
-| **`NOT_FOUND`** | `404` | If Hunter returns no email, automatically cascades to Apollo.io pool. |

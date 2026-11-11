@@ -3,23 +3,162 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OutFox — Cloud Key Vault & Load Balancer</title>
+    <title>Vault — Multi-Account API Key Vault & Load Balancer</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <!-- Fullscreen Auth Lock Overlay -->
+    <div id="auth-lock-overlay" class="auth-lock-overlay" style="display: none;">
+      <div class="auth-card">
+        <div class="auth-logo-badge">🦊</div>
+        <h2 class="auth-title">Vault Dashboard Locked</h2>
+        <p class="auth-desc">Enter your Admin Passkey to manage multi-account key pools and view proxy diagnostics.</p>
+        <form id="auth-form" class="auth-form" onsubmit="return false;">
+          <div class="form-group">
+            <label for="auth-passkey-input" class="form-label">Admin Passkey</label>
+            <input
+              type="password"
+              id="auth-passkey-input"
+              class="auth-input"
+              placeholder="Enter passkey (e.g. 007_haiSecret)"
+              autocomplete="current-password"
+              required
+            />
+          </div>
+          <div id="auth-error-msg" class="auth-error-box" style="display: none;"></div>
+          <button type="submit" id="btn-auth-unlock" class="btn-orange btn-full">
+            Unlock Vault
+          </button>
+        </form>
+        <div class="auth-hint">
+          <span>Protected endpoint</span> · <code>https://vault.api.crafture.space/</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- In-App Interactive Documentation Modal -->
+    <div id="modal-docs-overlay" class="modal-docs-overlay" style="display: none;">
+      <div class="modal-docs-backdrop" id="modal-docs-backdrop"></div>
+      <div class="modal-docs-dialog">
+        <div class="modal-docs-header">
+          <div class="modal-header-info">
+            <div class="modal-badge-icon">📖</div>
+            <div>
+              <h2 class="modal-title">Interactive API Documentation</h2>
+              <p class="modal-subtitle">Direct integration reference for <code>https://vault.api.crafture.space/</code></p>
+            </div>
+          </div>
+          <button type="button" class="modal-close-btn" id="btn-close-docs" aria-label="Close API Docs">✕</button>
+        </div>
+
+        <div class="modal-docs-body">
+          <!-- Auth & Base URL Specs Banner -->
+          <div class="docs-spec-banner">
+            <div class="spec-item">
+              <span class="spec-label">Target Endpoint</span>
+              <span class="spec-value code-pill">POST /api/enrich/waterfall</span>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Required Header</span>
+              <span class="spec-value code-pill">x-api-key: 007_haiSecret</span>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Public Domain</span>
+              <span class="spec-value code-pill">https://vault.api.crafture.space</span>
+            </div>
+          </div>
+
+          <!-- Language Tabs -->
+          <div class="docs-tabs-nav">
+            <button type="button" class="docs-tab-btn active" data-lang="curl">cURL</button>
+            <button type="button" class="docs-tab-btn" data-lang="js">JavaScript (Fetch)</button>
+            <button type="button" class="docs-tab-btn" data-lang="python">Python (Requests)</button>
+            <button type="button" class="docs-tab-btn" data-lang="extension">OutFox Extension</button>
+          </div>
+
+          <!-- Code Box Container -->
+          <div class="docs-code-container">
+            <div class="docs-code-bar">
+              <span class="docs-code-title" id="docs-code-lang-label">cURL — Master Waterfall</span>
+              <button type="button" class="btn-copy-code" id="btn-copy-code">
+                <span id="copy-btn-icon">📋</span>
+                <span id="copy-btn-text">Copy Code</span>
+              </button>
+            </div>
+            <pre class="docs-code-block"><code id="docs-code-content"></code></pre>
+          </div>
+
+          <!-- Endpoint Reference Table -->
+          <div class="docs-endpoints-summary">
+            <h4 class="docs-section-heading">Available Vault Proxy Endpoints</h4>
+            <div class="docs-table-wrap">
+              <table class="docs-table">
+                <thead>
+                  <tr>
+                    <th>Method & Endpoint</th>
+                    <th>Routing / Fallback Strategy</th>
+                    <th>Auth Header</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="http-badge post">POST</span> <code>/api/enrich/waterfall</code></td>
+                    <td>Hunter.io ➔ Apollo.io ➔ Corporate Pattern Waterfall (Auto-failover)</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge post">POST</span> <code>/api/enrich/apollo</code></td>
+                    <td>Direct Apollo.io Pool (Round-robin with 429 auto-demotion)</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge post">POST</span> <code>/api/enrich/hunter</code></td>
+                    <td>Direct Hunter.io Pool (Domain search with credit tracking)</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge post">POST</span> <code>/api/scrape/apify</code></td>
+                    <td>Direct Apify Actor Trigger (Task rotation)</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge get">GET</span> <code>/health</code></td>
+                    <td>Uptime and health check probe</td>
+                    <td><em>None (Public)</em></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Dashboard Shell -->
     <div class="vault-app">
       <!-- Top Navbar -->
       <header class="vault-navbar">
         <div class="nav-brand">
           <div class="logo-circle">🦊</div>
           <div class="brand-text">
-            <h1>OutFox Cloud Vault</h1>
-            <span class="brand-sub">Multi-Key Load Balancer & Auto-Failover Proxy</span>
+            <div class="brand-title-wrap">
+              <h1 class="brand-name">Vault</h1>
+              <span class="brand-version-pill">v1.0 Pro</span>
+            </div>
+            <span class="brand-sub">Zero-Downtime Multi-Account Load Balancer & Proxy</span>
           </div>
         </div>
-        <div class="nav-status">
-          <span class="live-dot"></span>
-          <span id="server-status-pill">Proxy Live on Port 4000</span>
+        <div class="nav-controls">
+          <button type="button" class="btn-nav-docs" id="btn-open-docs">
+            📖 API Docs
+          </button>
+          <div class="nav-status-pill">
+            <span class="live-dot"></span>
+            <span id="server-status-pill">vault.api.crafture.space</span>
+          </div>
+          <button type="button" class="btn-nav-lock" id="btn-lock-vault" title="Lock Admin Dashboard">
+            🔒 Lock
+          </button>
         </div>
       </header>
 
@@ -35,7 +174,7 @@
           <div class="kpi-card">
             <span class="kpi-lbl">Active & Ready</span>
             <span class="kpi-val text-orange" id="stat-active-keys">0</span>
-            <span class="kpi-sub">Available for instant routing</span>
+            <span class="kpi-sub">Immediate round-robin rotation</span>
           </div>
           <div class="kpi-card">
             <span class="kpi-lbl">Enrichments Served</span>
@@ -44,13 +183,13 @@
           </div>
           <div class="kpi-card">
             <span class="kpi-lbl">Failovers Handled</span>
-            <span class="kpi-val" id="stat-failovers">0</span>
-            <span class="kpi-sub">Auto-rotated on 429/402</span>
+            <span class="kpi-val text-slate" id="stat-failovers">0</span>
+            <span class="kpi-sub">Demoted on 429/402 under 50ms</span>
           </div>
         </section>
 
-        <!-- Provider Tabs -->
-        <section class="pool-section glass-card">
+        <!-- Provider Pools Workspace -->
+        <section class="pool-section white-card">
           <div class="tabs-bar">
             <button class="tab-btn active" data-provider="apollo">
               <span>🚀 Apollo.io Pool</span>
@@ -70,9 +209,12 @@
           <div class="pool-body">
             <!-- Left: Bulk Key Ingestion -->
             <div class="ingest-col">
-              <h3 class="col-title" id="ingest-title">Add Apollo Keys</h3>
+              <div class="col-head">
+                <h3 class="col-title" id="ingest-title">Add Apollo Keys</h3>
+                <span class="col-tag">Bulk Ingestion</span>
+              </div>
               <p class="col-desc">
-                Paste unlimited keys from your accounts. The proxy sequentially load-balances every request and automatically failovers when monthly limits hit.
+                Paste unlimited keys from your accounts. Requests are sequentially load-balanced across active keys, and accounts encountering 429 rate limits or 402 monthly exhaustion are auto-demoted in under 50ms.
               </p>
 
               <textarea
@@ -92,13 +234,13 @@
               <div class="table-actions-head">
                 <div>
                   <h3 class="col-title" id="pool-table-title">Apollo Keys Pool</h3>
-                  <span class="table-sub" id="pool-active-summary">0 Active · 0 Exhausted</span>
+                  <span class="table-sub" id="pool-active-summary">0 Active · 0 Inactive</span>
                 </div>
                 <div class="btn-group">
-                  <button type="button" class="btn-ghost" id="btn-test-all">
+                  <button type="button" class="btn-secondary" id="btn-test-all">
                     ⚡ Live Test All
                   </button>
-                  <button type="button" class="btn-danger-ghost" id="btn-clean-pool">
+                  <button type="button" class="btn-danger-light" id="btn-clean-pool">
                     🧹 Clean Dead/Exhausted
                   </button>
                 </div>
@@ -109,11 +251,11 @@
                 <table class="keys-table">
                   <thead>
                     <tr>
-                      <th>Key / Account</th>
+                      <th>Account / Key</th>
                       <th>Status</th>
-                      <th>Credits / Details</th>
+                      <th>Diagnostics / Credits</th>
                       <th>Usage</th>
-                      <th style="text-align: right;">Action</th>
+                      <th style="text-align: right;">Actions</th>
                     </tr>
                   </thead>
                   <tbody id="keys-table-body">
@@ -128,17 +270,23 @@
         </section>
 
         <!-- API Endpoint Reference Card -->
-        <section class="endpoints-card glass-card">
+        <section class="endpoints-card white-card">
           <div class="card-head">
-            <h3>🔗 OutFox Extension Integration Endpoint</h3>
-            <span class="badge-tag">Plug & Play</span>
+            <div class="card-head-title">
+              <h3>🔗 Production Waterfall Integration Endpoint</h3>
+              <span class="badge-tag">Plug & Play</span>
+            </div>
+            <span class="endpoint-auth-badge">Auth: <code>x-api-key: 007_haiSecret</code></span>
           </div>
           <p class="endpoint-desc">
-            Your OutFox extension automatically calls this centralized proxy. Users will never see API keys, limits, or configurations — everything happens like pure magic!
+            Connect your extensions, web scrapers, and outreach tools directly to this centralized endpoint. Automatic multi-account rotation and failover happen completely behind the scenes in under 50ms.
           </p>
           <div class="endpoint-box">
-            <code>POST http://localhost:4000/api/enrich/waterfall</code>
-            <button class="btn-copy" id="btn-copy-endpoint">Copy</button>
+            <div class="endpoint-url-wrap">
+              <span class="http-badge post">POST</span>
+              <code>https://vault.api.crafture.space/api/enrich/waterfall</code>
+            </div>
+            <button class="btn-orange-copy" id="btn-copy-endpoint">Copy Endpoint</button>
           </div>
         </section>
       </main>

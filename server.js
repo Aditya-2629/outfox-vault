@@ -1,12 +1,30 @@
 /**
- * OutFox Cloud Proxy Vault & Load Balancer Server
- * Production-ready zero-dependency HTTP server with security authentication.
+ * Vault — Multi-Account API Key Vault, Load Balancer & Auto-Failover Proxy
+ * Zero-dependency production server with default security passkeys.
  */
 
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const url = require('url');
+
+// Load local .env if present (zero-dependency)
+if (fs.existsSync(path.join(__dirname, '.env'))) {
+  try {
+    const envContent = fs.readFileSync(path.join(__dirname, '.env'), 'utf-8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx !== -1) {
+        const k = trimmed.slice(0, eqIdx).trim();
+        const v = trimmed.slice(eqIdx + 1).trim();
+        if (!process.env[k]) {
+          process.env[k] = v;
+        }
+      }
+    }
+  } catch {}
+}
 
 const pool = require('./engine/key-pool');
 const apollo = require('./engine/apollo-adapter');
@@ -16,9 +34,9 @@ const apify = require('./engine/apify-adapter');
 const PORT = process.env.PORT || 4000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-// Optional Security Keys (set in environment on Render/Railway)
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
-const CLIENT_API_KEY = process.env.CLIENT_API_KEY || '';
+// Security Passkeys (defaults to '007_haiSecret' by specification)
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '007_haiSecret';
+const CLIENT_API_KEY = process.env.CLIENT_API_KEY || '007_haiSecret';
 
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
@@ -45,12 +63,13 @@ function parseJsonBody(req) {
   });
 }
 
-function isAuthorized(req, expectedKey, headerName = 'x-api-key') {
-  if (!expectedKey) return true; // Open if no key configured
+function isAuthorized(req, expectedKey, headerName = 'x-api-key', query = {}) {
+  if (!expectedKey) return true;
   const authHeader = req.headers['authorization'] || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   const customHeader = req.headers[headerName] || req.headers[headerName.toLowerCase()] || '';
-  return customHeader === expectedKey || bearerToken === expectedKey;
+  const queryParam = query[headerName] || query['key'] || query['admin_key'] || query['api_key'] || '';
+  return customHeader === expectedKey || bearerToken === expectedKey || queryParam === expectedKey;
 }
 
 function serveStatic(res, filePath) {
@@ -80,7 +99,7 @@ function serveStatic(res, filePath) {
       res.writeHead(200, {
         'Content-Type': contentType,
         'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': 'no-cache',
       });
       res.end(content);
     }
@@ -88,9 +107,10 @@ function serveStatic(res, filePath) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const parsedUrl = url.parse(req.url, true);
+  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname;
   const method = req.method.toUpperCase();
+  const query = Object.fromEntries(parsedUrl.searchParams.entries());
 
   // Handle CORS Preflight
   if (method === 'OPTIONS') {
@@ -104,15 +124,24 @@ const server = http.createServer(async (req, res) => {
 
   // Health check endpoint (for Render / Railway / Uptime monitors)
   if (pathname === '/health' && method === 'GET') {
-    return sendJson(res, 200, { status: 'healthy', uptime: process.uptime(), timestamp: Date.now() });
+    return sendJson(res, 200, {
+      status: 'healthy',
+      service: 'Vault',
+      domain: 'vault.api.crafture.space',
+      uptime: process.uptime(),
+      timestamp: Date.now(),
+    });
   }
 
   // =========================================================================
-  // 1. PUBLIC ENRICHMENT ENDPOINTS
+  // 1. CLIENT ENRICHMENT ENDPOINTS (Protected by x-api-key: 007_haiSecret)
   // =========================================================================
   if (pathname.startsWith('/api/')) {
-    if (!isAuthorized(req, CLIENT_API_KEY, 'x-api-key')) {
-      return sendJson(res, 401, { ok: false, error: 'Unauthorized: Invalid or missing x-api-key header' });
+    if (!isAuthorized(req, CLIENT_API_KEY, 'x-api-key', query)) {
+      return sendJson(res, 401, {
+        ok: false,
+        error: 'Unauthorized: Invalid or missing x-api-key header (passkey required: 007_haiSecret)',
+      });
     }
 
     // A. Master Waterfall Endpoint (Hunter -> Apollo -> Pattern Generator)
@@ -121,6 +150,9 @@ const server = http.createServer(async (req, res) => {
         const payload = await parseJsonBody(req);
         let match = null;
 
+        const firstName = payload.firstName || (payload.fullName ? payload.fullName.split(' ')[0] : '');
+        const lastName = payload.lastName || (payload.fullName ? payload.fullName.split(' ').slice(1).join(' ') : '');
+
         // 1. Try Hunter first if domain present
         if (payload.domain) {
           try {
@@ -128,8 +160,8 @@ const server = http.createServer(async (req, res) => {
               return hunter.enrichHunter({
                 apiKey: key,
                 domain: payload.domain,
-                firstName: payload.firstName || (payload.fullName || '').split(' ')[0],
-                lastName: payload.lastName || (payload.fullName || '').split(' ').slice(1).join(' '),
+                firstName,
+                lastName,
               });
             });
           } catch {}
@@ -141,8 +173,8 @@ const server = http.createServer(async (req, res) => {
             match = await pool.executeWithRotation('apollo', async (key) => {
               return apollo.enrichApollo({
                 apiKey: key,
-                firstName: payload.firstName || (payload.fullName || '').split(' ')[0],
-                lastName: payload.lastName || (payload.fullName || '').split(' ').slice(1).join(' '),
+                firstName,
+                lastName,
                 domain: payload.domain,
                 company: payload.company || payload.companyName,
                 linkedinUrl: payload.linkedinUrl,
@@ -153,12 +185,12 @@ const server = http.createServer(async (req, res) => {
 
         // 3. Fallback Corporate Pattern Generator
         if (!match || !match.email) {
-          if (payload.domain && (payload.firstName || payload.fullName)) {
-            const f = (payload.firstName || payload.fullName.split(' ')[0]).toLowerCase().replace(/[^a-z]/g, '');
-            const l = (payload.lastName || payload.fullName.split(' ').slice(1).join(' ') || '').toLowerCase().replace(/[^a-z]/g, '');
+          if (payload.domain && (firstName || payload.fullName)) {
+            const f = (firstName || 'contact').toLowerCase().replace(/[^a-z]/g, '');
+            const l = (lastName || 'lead').toLowerCase().replace(/[^a-z]/g, '');
             const d = payload.domain.toLowerCase().trim();
             match = {
-              email: `${f}.${l || 'lead'}@${d}`,
+              email: `${f}.${l}@${d}`,
               phone: null,
               provider: 'pattern',
               confidence: 0.5,
@@ -179,11 +211,14 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/enrich/apollo' && method === 'POST') {
       try {
         const payload = await parseJsonBody(req);
+        const firstName = payload.firstName || (payload.fullName ? payload.fullName.split(' ')[0] : '');
+        const lastName = payload.lastName || (payload.fullName ? payload.fullName.split(' ').slice(1).join(' ') : '');
+
         const result = await pool.executeWithRotation('apollo', async (key) => {
           return apollo.enrichApollo({
             apiKey: key,
-            firstName: payload.firstName || (payload.fullName || '').split(' ')[0],
-            lastName: payload.lastName || (payload.fullName || '').split(' ').slice(1).join(' '),
+            firstName,
+            lastName,
             domain: payload.domain,
             company: payload.company || payload.companyName,
             linkedinUrl: payload.linkedinUrl,
@@ -199,12 +234,15 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/enrich/hunter' && method === 'POST') {
       try {
         const payload = await parseJsonBody(req);
+        const firstName = payload.firstName || (payload.fullName ? payload.fullName.split(' ')[0] : '');
+        const lastName = payload.lastName || (payload.fullName ? payload.fullName.split(' ').slice(1).join(' ') : '');
+
         const result = await pool.executeWithRotation('hunter', async (key) => {
           return hunter.enrichHunter({
             apiKey: key,
             domain: payload.domain,
-            firstName: payload.firstName || (payload.fullName || '').split(' ')[0],
-            lastName: payload.lastName || (payload.fullName || '').split(' ').slice(1).join(' '),
+            firstName,
+            lastName,
           });
         });
         return sendJson(res, 200, { ok: true, data: result });
@@ -232,11 +270,14 @@ const server = http.createServer(async (req, res) => {
   }
 
   // =========================================================================
-  // 2. PRIVATE ADMIN VAULT ENDPOINTS
+  // 2. PRIVATE ADMIN VAULT ENDPOINTS (Protected by x-admin-key: 007_haiSecret)
   // =========================================================================
   if (pathname.startsWith('/admin/')) {
-    if (!isAuthorized(req, ADMIN_API_KEY, 'x-admin-key')) {
-      return sendJson(res, 401, { ok: false, error: 'Unauthorized: Invalid or missing x-admin-key' });
+    if (!isAuthorized(req, ADMIN_API_KEY, 'x-admin-key', query)) {
+      return sendJson(res, 401, {
+        ok: false,
+        error: 'Unauthorized: Invalid or missing x-admin-key (passkey required: 007_haiSecret)',
+      });
     }
 
     // Status
@@ -286,8 +327,8 @@ const server = http.createServer(async (req, res) => {
 
     // Delete Single Key
     if (pathname === '/admin/vault/key' && method === 'DELETE') {
-      const provider = parsedUrl.query.provider;
-      const id = parsedUrl.query.id;
+      const provider = query.provider;
+      const id = query.id;
       if (!provider || !id) return sendJson(res, 400, { ok: false, error: 'provider and id query params required' });
       const success = pool.removeKey(provider, id);
       return sendJson(res, 200, { ok: success });
@@ -307,11 +348,12 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`\n=============================================================`);
-  console.log(`🦊 OutFox Cloud Key Vault & Load Balancer is ACTIVE!`);
+  console.log(`🦊 Vault — Multi-Account Key Pool & Failover Proxy ACTIVE!`);
   console.log(`📡 Port:               ${PORT}`);
-  console.log(`🔒 Admin Auth:         ${ADMIN_API_KEY ? 'Enabled (Protected)' : 'Open (Dev Mode)'}`);
-  console.log(`🔑 Client API Key:     ${CLIENT_API_KEY ? 'Required' : 'Public / Open'}`);
+  console.log(`🌐 Public Domain:      https://vault.api.crafture.space/`);
+  console.log(`🔒 Admin Passkey:      ${ADMIN_API_KEY ? 'Configured (007_haiSecret)' : 'Open'}`);
+  console.log(`🔑 Client API Key:     ${CLIENT_API_KEY ? 'Configured (007_haiSecret)' : 'Open'}`);
   console.log(`📊 Admin Web UI:       http://localhost:${PORT}/`);
-  console.log(`⚡ Master Waterfall:   http://localhost:${PORT}/api/enrich/waterfall`);
+  console.log(`⚡ Master Waterfall:   https://vault.api.crafture.space/api/enrich/waterfall`);
   console.log(`=============================================================\n`);
 });
