@@ -176,10 +176,10 @@ async function verifyAndUnlock(passkey) {
 // 2. DATA FETCHING & UI RENDERING
 // =========================================================================
 async function fetchVaultStatus() {
-  const key = getAdminPasskey();
+  const passkey = getAdminPasskey();
   try {
     const res = await fetch('/admin/vault/status', {
-      headers: { 'x-admin-key': key },
+      headers: { 'x-admin-key': passkey },
     });
 
     if (res.status === 401) {
@@ -199,9 +199,10 @@ async function fetchVaultStatus() {
 }
 
 async function fetchEndpoints() {
+  const passkey = getAdminPasskey();
   try {
     const res = await fetch('/api/endpoints', {
-      headers: { 'x-api-key': getAdminPasskey() },
+      headers: { 'x-api-key': passkey },
     });
     if (res.ok) {
       const json = await res.json();
@@ -216,9 +217,10 @@ async function fetchEndpoints() {
 }
 
 async function fetchAlertBots() {
+  const passkey = getAdminPasskey();
   try {
     const res = await fetch('/api/alert-bots', {
-      headers: { 'x-api-key': getAdminPasskey() },
+      headers: { 'x-api-key': passkey },
     });
     if (res.ok) {
       const json = await res.json();
@@ -344,9 +346,10 @@ function renderUI() {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
       if (confirm('Are you sure you want to remove this account key from the pool?')) {
+        const passkey = getAdminPasskey();
         await fetch(`/admin/vault/key?provider=${activeProvider}&id=${id}`, {
           method: 'DELETE',
-          headers: { 'x-admin-key': getAdminPasskey() },
+          headers: { 'x-admin-key': passkey },
         });
         fetchVaultStatus();
       }
@@ -358,11 +361,12 @@ function renderUI() {
     btn.addEventListener('click', async () => {
       btn.textContent = 'Testing...';
       btn.disabled = true;
+      const passkey = getAdminPasskey();
       await fetch('/admin/vault/test', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-key': getAdminPasskey(),
+          'x-admin-key': passkey,
         },
         body: JSON.stringify({ provider: activeProvider }),
       });
@@ -558,12 +562,13 @@ function renderBotsGrid() {
       const id = btn.dataset.id;
       const shouldEnable = btn.dataset.enabled === 'true';
       btn.disabled = true;
+      const passkey = getAdminPasskey();
       try {
         const res = await fetch(`/api/alert-bots/${id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': getAdminPasskey(),
+            'x-api-key': passkey,
           },
           body: JSON.stringify({ enabled: shouldEnable }),
         });
@@ -584,10 +589,11 @@ function renderBotsGrid() {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
       if (confirm('Are you sure you want to remove this Telegram Alert Bot?')) {
+        const passkey = getAdminPasskey();
         try {
           const res = await fetch(`/api/alert-bots/${id}`, {
             method: 'DELETE',
-            headers: { 'x-api-key': getAdminPasskey() },
+            headers: { 'x-api-key': passkey },
           });
           const json = await res.json();
           if (json.ok) {
@@ -772,13 +778,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const saveBtn = document.getElementById('btn-save-bot');
       saveBtn.textContent = 'Registering...';
       saveBtn.disabled = true;
+      const passkey = getAdminPasskey();
 
       try {
         const res = await fetch('/api/alert-bots', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': getAdminPasskey(),
+            'x-api-key': passkey,
           },
           body: JSON.stringify({ label, botToken, chatId }),
         });
@@ -812,13 +819,14 @@ document.addEventListener('DOMContentLoaded', () => {
     btnTestAlerts.addEventListener('click', async () => {
       btnTestAlerts.textContent = '🔔 Broadcasting...';
       btnTestAlerts.disabled = true;
+      const passkey = getAdminPasskey();
 
       try {
         const res = await fetch('/api/alert-bots/test', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': getAdminPasskey(),
+            'x-api-key': passkey,
           },
         });
 
@@ -862,13 +870,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const saveBtn = document.getElementById('btn-save-endpoint');
       saveBtn.textContent = 'Saving...';
       saveBtn.disabled = true;
+      const passkey = getAdminPasskey();
 
       try {
         const res = await fetch(`/api/endpoints/${encodeURIComponent(key)}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': getAdminPasskey(),
+            'x-api-key': passkey,
           },
           body: JSON.stringify({ name, method, url, sduiid, queryId }),
         });
@@ -897,6 +906,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btnAudit.textContent = '🩺 Triggering Audit...';
       btnAudit.disabled = true;
       isAuditing = true;
+      const passkey = getAdminPasskey();
 
       const auditTag = document.getElementById('audit-status-indicator');
       if (auditTag) {
@@ -909,7 +919,7 @@ document.addEventListener('DOMContentLoaded', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': getAdminPasskey(),
+            'x-api-key': passkey,
           },
         });
         const json = await res.json();
@@ -1016,13 +1026,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       btnAddKeys.textContent = 'Adding to Pool...';
       btnAddKeys.disabled = true;
+      const passkey = getAdminPasskey();
 
       try {
         const res = await fetch('/admin/vault/add', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-key': getAdminPasskey(),
+            'x-admin-key': passkey,
           },
           body: JSON.stringify({ provider: activeProvider, keys: raw }),
         });
@@ -1049,13 +1060,14 @@ document.addEventListener('DOMContentLoaded', () => {
     btnTestAll.addEventListener('click', async () => {
       btnTestAll.textContent = '⚡ Running Live Tests...';
       btnTestAll.disabled = true;
+      const passkey = getAdminPasskey();
 
       try {
         const res = await fetch('/admin/vault/test', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-key': getAdminPasskey(),
+            'x-admin-key': passkey,
           },
           body: JSON.stringify({ provider: activeProvider }),
         });
@@ -1078,11 +1090,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnCleanPool) {
     btnCleanPool.addEventListener('click', async () => {
       if (confirm(`Remove all dead, invalid, and exhausted accounts from ${PROVIDER_NAMES[activeProvider]} pool?`)) {
+        const passkey = getAdminPasskey();
         const res = await fetch('/admin/vault/clean', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-key': getAdminPasskey(),
+            'x-admin-key': passkey,
           },
           body: JSON.stringify({ provider: activeProvider }),
         });
