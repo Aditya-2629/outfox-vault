@@ -1241,10 +1241,19 @@ code, pre {
   box-shadow: var(--shadow-xl);
   width: 100%;
   max-width: 880px;
-  max-height: 88vh;
+  max-height: min(90vh, 760px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.modal-docs-dialog form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
 }
 
 .modal-docs-header {
@@ -1308,11 +1317,27 @@ code, pre {
 }
 
 .modal-docs-body {
-  padding: 24px 26px;
+  padding: 22px 26px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.modal-docs-footer {
+  padding: 16px 26px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  background: #fdfefe;
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
 }
 
 .docs-spec-banner {

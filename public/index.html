@@ -50,7 +50,7 @@
           </div>
           <button type="button" class="modal-close-btn" id="btn-close-edit" aria-label="Close">✕</button>
         </div>
-        <form id="form-edit-endpoint" class="edit-endpoint-form" onsubmit="return false;">
+        <form id="form-edit-endpoint" class="edit-endpoint-form">
           <div class="modal-docs-body" style="gap: 14px;">
             <div class="form-group">
               <label class="form-label">Endpoint Identifier</label>
@@ -90,9 +90,9 @@
               </label>
             </div>
           </div>
-          <div style="padding: 16px 26px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: #fdfefe;">
+          <div class="modal-docs-footer">
             <button type="button" class="btn-secondary" id="btn-cancel-edit">Cancel</button>
-            <button type="submit" class="btn-orange" id="btn-save-endpoint">💾 Save & Hot-Update</button>
+            <button type="submit" class="btn-orange" id="btn-save-endpoint" style="font-weight: 700; padding: 11px 22px; font-size: 13.5px; box-shadow: 0 2px 8px rgba(255,107,0,0.25);">💾 Save & Hot-Update</button>
           </div>
         </form>
       </div>
@@ -112,7 +112,7 @@
           </div>
           <button type="button" class="modal-close-btn" id="btn-close-add-bot" aria-label="Close">✕</button>
         </div>
-        <form id="form-add-bot" onsubmit="return false;">
+        <form id="form-add-bot">
           <div class="modal-docs-body" style="gap: 14px;">
             <div class="form-group">
               <label class="form-label">Bot Label / Friendly Name</label>
@@ -129,9 +129,9 @@
             </div>
             <div id="add-bot-error" class="auth-error-box" style="display: none;"></div>
           </div>
-          <div style="padding: 16px 26px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: #fdfefe;">
+          <div class="modal-docs-footer">
             <button type="button" class="btn-secondary" id="btn-cancel-add-bot">Cancel</button>
-            <button type="submit" class="btn-orange" id="btn-save-bot">➕ Add Alert Bot</button>
+            <button type="submit" class="btn-orange" id="btn-save-bot" style="font-weight: 700; padding: 11px 22px; font-size: 13.5px; box-shadow: 0 2px 8px rgba(255,107,0,0.25);">➕ Add Alert Bot</button>
           </div>
         </form>
       </div>
