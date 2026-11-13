@@ -1,0 +1,12 @@
+name = "vault-api"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+
+[[kv_namespaces]]
+binding = "VAULT_KV"
+id = "<YOUR_KV_NAMESPACE_ID>"
+
+[vars]
+API_KEY = "007_haiSecret"
+ADMIN_API_KEY = "007_haiSecret"
+CLIENT_API_KEY = "007_haiSecret"
