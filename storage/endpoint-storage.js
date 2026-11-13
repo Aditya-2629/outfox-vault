@@ -12,6 +12,25 @@ const DEFAULT_REGISTRY = {
   updatedAt: Date.now(),
   auditRequestedAt: null,
   endpoints: {
+    me: {
+      name: 'Current User (Me)',
+      url: '/voyager/api/me',
+      method: 'GET',
+      status: 'healthy',
+      lastStatus: 200,
+      lastCheckedAt: Date.now(),
+      lastError: null,
+      lastAlertedAt: null,
+      captureGuide: {
+        captureType: 'GET_LIST',
+        method: 'GET',
+        pageUrl: 'https://www.linkedin.com/feed/',
+        networkFilter: 'status-code:200 larger-than:3k',
+        action: 'Press Ctrl+R (Refresh)',
+        hint: '/voyager/api/me',
+        copyTarget: 'Headers → Request URL',
+      },
+    },
     sendInvite: {
       name: 'Send Connection Invite',
       url: '/voyager/api/voyagerRelationshipsDashMemberRelationships?action=verifyQuotaAndCreateV2&decorationId=com.linkedin.voyager.dash.deco.relationships.InvitationCreationResultWithInvitee-2',
@@ -22,10 +41,13 @@ const DEFAULT_REGISTRY = {
       lastError: null,
       lastAlertedAt: null,
       captureGuide: {
+        captureType: 'POST_ACTION',
+        method: 'POST',
         pageUrl: 'https://www.linkedin.com/in/{profile}',
-        networkFilter: 'method:POST',
-        action: 'Click "Connect" -> "Send without note" on any member profile',
-        copyTarget: 'Request URL (voyagerRelationshipsDashMemberRelationships with action & decorationId)',
+        networkFilter: 'status-code:200 method:POST',
+        action: 'Click "Connect" -> "Send" (without note)',
+        hint: 'verifyQuotaAndCreateV2',
+        copyTarget: 'Headers → Request URL',
       },
     },
     withdrawInvitation: {
@@ -39,10 +61,13 @@ const DEFAULT_REGISTRY = {
       lastError: null,
       lastAlertedAt: null,
       captureGuide: {
+        captureType: 'POST_ACTION',
+        method: 'POST',
         pageUrl: 'https://www.linkedin.com/mynetwork/invitation-manager/sent/',
-        networkFilter: 'method:POST',
-        action: 'Click "Withdraw" on any pending sent invitation',
-        copyTarget: 'rsc-action URL and sduiid query parameter',
+        networkFilter: 'status-code:200 method:POST',
+        action: 'Click "Withdraw" on any pending invitation',
+        hint: 'server-request?sduiid=...addaWithdrawInvitation (also check Payload tab)',
+        copyTarget: 'Headers → Request URL',
       },
     },
     listSentInvitations: {
@@ -55,10 +80,13 @@ const DEFAULT_REGISTRY = {
       lastError: null,
       lastAlertedAt: null,
       captureGuide: {
+        captureType: 'GET_LIST',
+        method: 'GET',
         pageUrl: 'https://www.linkedin.com/mynetwork/invitation-manager/sent/',
-        networkFilter: 'sentInvitation',
-        action: 'Open or refresh the "Sent Invitations" tab',
-        copyTarget: 'Full GET URL with query params (count, invitationType, q, start)',
+        networkFilter: 'status-code:200 larger-than:3k',
+        action: 'Open or refresh "Sent Invitations" tab',
+        hint: 'sentInvitationViewsV2 or graphql / server-request',
+        copyTarget: 'Headers → Request URL',
       },
     },
     connectionsSummary: {
@@ -71,10 +99,13 @@ const DEFAULT_REGISTRY = {
       lastError: null,
       lastAlertedAt: null,
       captureGuide: {
+        captureType: 'GET_LIST',
+        method: 'GET',
         pageUrl: 'https://www.linkedin.com/mynetwork/invite-connect/connections/',
-        networkFilter: 'connections',
+        networkFilter: 'status-code:200 larger-than:3k',
         action: 'Open the "Connections" tab under My Network',
-        copyTarget: 'Request URL (/voyager/api/relationships/connectionsSummary)',
+        hint: 'connectionsSummary (or Doc / Ctrl+Shift+F if SSR)',
+        copyTarget: 'Headers → Request URL',
       },
     },
     messengerConversations: {
@@ -88,10 +119,13 @@ const DEFAULT_REGISTRY = {
       lastError: null,
       lastAlertedAt: null,
       captureGuide: {
+        captureType: 'GET_LIST',
+        method: 'GET',
         pageUrl: 'https://www.linkedin.com/messaging/',
-        networkFilter: 'graphql',
+        networkFilter: 'status-code:200 larger-than:3k',
         action: 'Open Messaging inbox or click any conversation thread',
-        copyTarget: 'queryId parameter in the GraphQL query URL',
+        hint: 'voyagerMessagingGraphQL/graphql?queryId=messengerConversations...',
+        copyTarget: 'Headers → Request URL',
       },
     },
     profileView: {
@@ -104,10 +138,13 @@ const DEFAULT_REGISTRY = {
       lastError: null,
       lastAlertedAt: null,
       captureGuide: {
+        captureType: 'GET_LIST',
+        method: 'GET',
         pageUrl: 'https://www.linkedin.com/in/{profile}',
-        networkFilter: 'profiles',
+        networkFilter: 'status-code:200 larger-than:3k',
         action: 'Navigate to any member profile page',
-        copyTarget: 'Base URL path (/voyager/api/identity/dash/profiles)',
+        hint: '/voyager/api/identity/dash/profiles',
+        copyTarget: 'Headers → Request URL',
       },
     },
   },
@@ -123,19 +160,24 @@ function readEndpoints() {
     const parsed = JSON.parse(raw);
     if (!parsed.endpoints) parsed.endpoints = {};
 
-    // Ensure all default seeds exist and network filters are future-proof
+    // Ensure all default seeds exist and capture guides are up to date
     let needsSave = false;
     for (const [key, defaultVal] of Object.entries(DEFAULT_REGISTRY.endpoints)) {
       if (!parsed.endpoints[key]) {
         parsed.endpoints[key] = { ...defaultVal };
         needsSave = true;
-      } else if (defaultVal.captureGuide?.networkFilter) {
-        if (!parsed.endpoints[key].captureGuide) {
-          parsed.endpoints[key].captureGuide = { ...defaultVal.captureGuide };
+      } else {
+        const ep = parsed.endpoints[key];
+        if (!ep.captureGuide) {
+          ep.captureGuide = { ...defaultVal.captureGuide };
           needsSave = true;
-        } else if (parsed.endpoints[key].captureGuide.networkFilter !== defaultVal.captureGuide.networkFilter) {
-          parsed.endpoints[key].captureGuide.networkFilter = defaultVal.captureGuide.networkFilter;
-          needsSave = true;
+        } else {
+          for (const [k, v] of Object.entries(defaultVal.captureGuide)) {
+            if (ep.captureGuide[k] !== v) {
+              ep.captureGuide[k] = v;
+              needsSave = true;
+            }
+          }
         }
       }
     }

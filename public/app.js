@@ -491,12 +491,12 @@ function renderLinkedInWorkspace() {
         </div>
 
         <div class="capture-guide-box">
-          <div class="guide-title">🛠️ Developer F12 Capture Guide</div>
+          <div class="guide-title">🛠️ Developer F12 Capture Guide (${ep.captureGuide?.captureType || (ep.method === 'POST' ? 'POST_ACTION' : 'GET_LIST')})</div>
           <div class="guide-grid">
             <div><b>Page:</b> <a href="${ep.captureGuide?.pageUrl || 'https://www.linkedin.com/'}" target="_blank" rel="noopener noreferrer">${ep.captureGuide?.pageUrl || 'LinkedIn Page'}</a></div>
-            <div><b>Network Filter:</b> <code>${ep.captureGuide?.networkFilter || k}</code></div>
+            <div><b>Network Filter:</b> <code>${ep.captureGuide?.networkFilter || (ep.method === 'POST' ? 'status-code:200 method:POST' : 'status-code:200 larger-than:3k')}</code></div>
             <div><b>Action:</b> ${ep.captureGuide?.action || 'Perform action'}</div>
-            <div><b>Copy Target:</b> ${ep.captureGuide?.copyTarget || 'Request URL'}</div>
+            <div><b>Hint / Target:</b> <code>${ep.captureGuide?.hint || ep.captureGuide?.copyTarget || 'Request URL'}</code></div>
           </div>
         </div>
       </div>
