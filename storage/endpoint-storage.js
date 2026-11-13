@@ -23,7 +23,7 @@ const DEFAULT_REGISTRY = {
       lastAlertedAt: null,
       captureGuide: {
         pageUrl: 'https://www.linkedin.com/in/{profile}',
-        networkFilter: 'verifyQuotaAndCreateV2',
+        networkFilter: 'method:POST',
         action: 'Click "Connect" -> "Send without note" on any member profile',
         copyTarget: 'Request URL (voyagerRelationshipsDashMemberRelationships with action & decorationId)',
       },
@@ -40,7 +40,7 @@ const DEFAULT_REGISTRY = {
       lastAlertedAt: null,
       captureGuide: {
         pageUrl: 'https://www.linkedin.com/mynetwork/invitation-manager/sent/',
-        networkFilter: 'rsc-action',
+        networkFilter: 'method:POST',
         action: 'Click "Withdraw" on any pending sent invitation',
         copyTarget: 'rsc-action URL and sduiid query parameter',
       },
@@ -56,7 +56,7 @@ const DEFAULT_REGISTRY = {
       lastAlertedAt: null,
       captureGuide: {
         pageUrl: 'https://www.linkedin.com/mynetwork/invitation-manager/sent/',
-        networkFilter: 'sentInvitationViewsV2',
+        networkFilter: 'sentInvitation',
         action: 'Open or refresh the "Sent Invitations" tab',
         copyTarget: 'Full GET URL with query params (count, invitationType, q, start)',
       },
@@ -72,7 +72,7 @@ const DEFAULT_REGISTRY = {
       lastAlertedAt: null,
       captureGuide: {
         pageUrl: 'https://www.linkedin.com/mynetwork/invite-connect/connections/',
-        networkFilter: 'connectionsSummary',
+        networkFilter: 'connections',
         action: 'Open the "Connections" tab under My Network',
         copyTarget: 'Request URL (/voyager/api/relationships/connectionsSummary)',
       },
@@ -89,7 +89,7 @@ const DEFAULT_REGISTRY = {
       lastAlertedAt: null,
       captureGuide: {
         pageUrl: 'https://www.linkedin.com/messaging/',
-        networkFilter: 'messengerConversations',
+        networkFilter: 'graphql',
         action: 'Open Messaging inbox or click any conversation thread',
         copyTarget: 'queryId parameter in the GraphQL query URL',
       },
@@ -105,7 +105,7 @@ const DEFAULT_REGISTRY = {
       lastAlertedAt: null,
       captureGuide: {
         pageUrl: 'https://www.linkedin.com/in/{profile}',
-        networkFilter: 'identity/dash/profiles',
+        networkFilter: 'profiles',
         action: 'Navigate to any member profile page',
         copyTarget: 'Base URL path (/voyager/api/identity/dash/profiles)',
       },
@@ -123,12 +123,20 @@ function readEndpoints() {
     const parsed = JSON.parse(raw);
     if (!parsed.endpoints) parsed.endpoints = {};
 
-    // Ensure all default seeds exist
+    // Ensure all default seeds exist and network filters are future-proof
     let needsSave = false;
     for (const [key, defaultVal] of Object.entries(DEFAULT_REGISTRY.endpoints)) {
       if (!parsed.endpoints[key]) {
         parsed.endpoints[key] = { ...defaultVal };
         needsSave = true;
+      } else if (defaultVal.captureGuide?.networkFilter) {
+        if (!parsed.endpoints[key].captureGuide) {
+          parsed.endpoints[key].captureGuide = { ...defaultVal.captureGuide };
+          needsSave = true;
+        } else if (parsed.endpoints[key].captureGuide.networkFilter !== defaultVal.captureGuide.networkFilter) {
+          parsed.endpoints[key].captureGuide.networkFilter = defaultVal.captureGuide.networkFilter;
+          needsSave = true;
+        }
       }
     }
     if (needsSave) {

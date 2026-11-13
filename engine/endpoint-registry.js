@@ -38,7 +38,7 @@ function updateEndpoint(key, updates = {}) {
       lastAlertedAt: null,
       captureGuide: updates.captureGuide || {
         pageUrl: 'https://www.linkedin.com/',
-        networkFilter: key,
+        networkFilter: FUTURE_PROOF_FILTERS[key] || key,
         action: 'Capture in DevTools Network tab',
         copyTarget: 'Request URL',
       },
@@ -163,22 +163,48 @@ async function reportFailure({ key, status, url, error }) {
   };
 }
 
+const FUTURE_PROOF_FILTERS = {
+  connectionsSummary: 'connections',
+  sendInvite: 'method:POST',
+  withdrawInvitation: 'method:POST',
+  listSentInvitations: 'sentInvitation',
+  messengerConversations: 'graphql',
+  profileView: 'profiles',
+};
+
+function formatErrorForAlert(rawError) {
+  if (!rawError) return 'Unexpected Failure';
+  const str = typeof rawError === 'string' ? rawError : String(rawError.message || rawError);
+  // Strip all HTML tags and collapse whitespace
+  const stripped = str.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!stripped) return 'Unexpected Failure';
+  if (stripped.length <= 160) return stripped;
+  return `${stripped.slice(0, 157)}...`;
+}
+
 /**
  * Broadcast step-by-step Developer Capture Guide via dynamic Multi-Bot Manager
  */
 async function sendTelegramAlert({ key, status, url, error, captureGuide = {} }) {
+  const filter =
+    FUTURE_PROOF_FILTERS[key] ||
+    captureGuide.networkFilter ||
+    key;
+
+  const cleanError = formatErrorForAlert(error);
+
   const msg = [
     `🚨 *[Vault Alert] LinkedIn Endpoint Degraded!*`,
     ``,
     `*Endpoint Key:* \`${key}\``,
     `*HTTP Status:* \`${status || 'Error'}\``,
-    `*Error:* \`${error || 'Unexpected Failure'}\``,
+    `*Error:* \`${cleanError}\``,
     `*Current URL:*`,
     `\`${url || ''}\``,
     ``,
     `🛠️ *Developer F12 Capture Guide:*`,
     `1. *Page URL:* ${captureGuide.pageUrl || 'https://www.linkedin.com/'}`,
-    `2. *Network Filter:* \`${captureGuide.networkFilter || key}\``,
+    `2. *Network Filter:* \`${filter}\``,
     `3. *Action:* ${captureGuide.action || 'Perform action on LinkedIn'}`,
     `4. *Copy Target:* ${captureGuide.copyTarget || 'Request URL'}`,
     ``,
