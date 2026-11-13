@@ -111,7 +111,11 @@ const LANG_TITLES = {
 // 1. AUTH & PASSKEY MANAGEMENT
 // =========================================================================
 function getAdminPasskey() {
-  return localStorage.getItem('vault_admin_passkey') || '007_haiSecret';
+  const val = localStorage.getItem('vault_admin_passkey');
+  if (val && typeof val === 'string' && val.trim()) {
+    return val.trim();
+  }
+  return '007_haiSecret';
 }
 
 function setAdminPasskey(key) {
@@ -150,7 +154,10 @@ function hideAuthOverlay() {
 async function verifyAndUnlock(passkey) {
   try {
     const res = await fetch('/admin/vault/status', {
-      headers: { 'x-admin-key': passkey },
+      headers: {
+        'x-admin-key': passkey,
+        'x-api-key': passkey,
+      },
     });
     if (res.ok) {
       const json = await res.json();
@@ -179,7 +186,10 @@ async function fetchVaultStatus() {
   const passkey = getAdminPasskey();
   try {
     const res = await fetch('/admin/vault/status', {
-      headers: { 'x-admin-key': passkey },
+      headers: {
+        'x-admin-key': passkey,
+        'x-api-key': passkey,
+      },
     });
 
     if (res.status === 401) {
@@ -202,7 +212,10 @@ async function fetchEndpoints() {
   const passkey = getAdminPasskey();
   try {
     const res = await fetch('/api/endpoints', {
-      headers: { 'x-api-key': passkey },
+      headers: {
+        'x-api-key': passkey,
+        'x-admin-key': passkey,
+      },
     });
     if (res.ok) {
       const json = await res.json();
@@ -220,7 +233,10 @@ async function fetchAlertBots() {
   const passkey = getAdminPasskey();
   try {
     const res = await fetch('/api/alert-bots', {
-      headers: { 'x-api-key': passkey },
+      headers: {
+        'x-api-key': passkey,
+        'x-admin-key': passkey,
+      },
     });
     if (res.ok) {
       const json = await res.json();
@@ -349,7 +365,10 @@ function renderUI() {
         const passkey = getAdminPasskey();
         await fetch(`/admin/vault/key?provider=${activeProvider}&id=${id}`, {
           method: 'DELETE',
-          headers: { 'x-admin-key': passkey },
+          headers: {
+            'x-admin-key': passkey,
+            'x-api-key': passkey,
+          },
         });
         fetchVaultStatus();
       }
@@ -367,6 +386,7 @@ function renderUI() {
         headers: {
           'Content-Type': 'application/json',
           'x-admin-key': passkey,
+          'x-api-key': passkey,
         },
         body: JSON.stringify({ provider: activeProvider }),
       });
@@ -569,6 +589,7 @@ function renderBotsGrid() {
           headers: {
             'Content-Type': 'application/json',
             'x-api-key': passkey,
+            'x-admin-key': passkey,
           },
           body: JSON.stringify({ enabled: shouldEnable }),
         });
@@ -593,7 +614,10 @@ function renderBotsGrid() {
         try {
           const res = await fetch(`/api/alert-bots/${id}`, {
             method: 'DELETE',
-            headers: { 'x-api-key': passkey },
+            headers: {
+              'x-api-key': passkey,
+              'x-admin-key': passkey,
+            },
           });
           const json = await res.json();
           if (json.ok) {
@@ -786,6 +810,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: {
             'Content-Type': 'application/json',
             'x-api-key': passkey,
+            'x-admin-key': passkey,
           },
           body: JSON.stringify({ label, botToken, chatId }),
         });
@@ -827,6 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: {
             'Content-Type': 'application/json',
             'x-api-key': passkey,
+            'x-admin-key': passkey,
           },
         });
 
@@ -878,6 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: {
             'Content-Type': 'application/json',
             'x-api-key': passkey,
+            'x-admin-key': passkey,
           },
           body: JSON.stringify({ name, method, url, sduiid, queryId }),
         });
@@ -920,6 +947,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: {
             'Content-Type': 'application/json',
             'x-api-key': passkey,
+            'x-admin-key': passkey,
           },
         });
         const json = await res.json();
@@ -1034,6 +1062,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: {
             'Content-Type': 'application/json',
             'x-admin-key': passkey,
+            'x-api-key': passkey,
           },
           body: JSON.stringify({ provider: activeProvider, keys: raw }),
         });
@@ -1068,6 +1097,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: {
             'Content-Type': 'application/json',
             'x-admin-key': passkey,
+            'x-api-key': passkey,
           },
           body: JSON.stringify({ provider: activeProvider }),
         });
@@ -1096,6 +1126,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: {
             'Content-Type': 'application/json',
             'x-admin-key': passkey,
+            'x-api-key': passkey,
           },
           body: JSON.stringify({ provider: activeProvider }),
         });

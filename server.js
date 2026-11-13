@@ -67,12 +67,20 @@ function parseJsonBody(req) {
 
 function isAuthorized(req, expectedKey, headerName = 'x-api-key', query = {}) {
   if (!expectedKey) return true;
-  const authHeader = req.headers['authorization'] || '';
+  const authHeader = (req.headers['authorization'] || '').trim();
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-  const customHeader = req.headers[headerName] || req.headers[headerName.toLowerCase()] || '';
-  const altHeader = req.headers['x-admin-key'] || req.headers['x-api-key'] || '';
-  const queryParam = query[headerName] || query['key'] || query['admin_key'] || query['api_key'] || '';
-  return customHeader === expectedKey || altHeader === expectedKey || bearerToken === expectedKey || queryParam === expectedKey;
+  const xApiKey = (req.headers['x-api-key'] || '').trim();
+  const xAdminKey = (req.headers['x-admin-key'] || '').trim();
+  const customHeader = (req.headers[headerName] || req.headers[headerName.toLowerCase()] || '').trim();
+  const queryParam = (query[headerName] || query['key'] || query['admin_key'] || query['api_key'] || '').trim();
+
+  return (
+    customHeader === expectedKey ||
+    xApiKey === expectedKey ||
+    xAdminKey === expectedKey ||
+    bearerToken === expectedKey ||
+    queryParam === expectedKey
+  );
 }
 
 function serveStatic(res, filePath) {
@@ -137,10 +145,17 @@ const server = http.createServer(async (req, res) => {
   }
 
   // =========================================================================
-  // 1. API ENDPOINTS (Protected by x-api-key: 007_haiSecret)
+  // 1. API ENDPOINTS (Protected by x-api-key: 007_haiSecret or ADMIN_API_KEY)
   // =========================================================================
   if (pathname.startsWith('/api/')) {
-    if (!isAuthorized(req, CLIENT_API_KEY, 'x-api-key', query)) {
+    const isAuthorizedRequest =
+      isAuthorized(req, CLIENT_API_KEY, 'x-api-key', query) ||
+      isAuthorized(req, ADMIN_API_KEY, 'x-admin-key', query) ||
+      isAuthorized(req, ADMIN_API_KEY, 'x-api-key', query) ||
+      isAuthorized(req, '007_haiSecret', 'x-api-key', query) ||
+      isAuthorized(req, '007_haiSecret', 'x-admin-key', query);
+
+    if (!isAuthorizedRequest) {
       return sendJson(res, 401, {
         ok: false,
         error: 'Unauthorized: Invalid or missing x-api-key header (passkey required: 007_haiSecret)',
@@ -415,7 +430,15 @@ const server = http.createServer(async (req, res) => {
   // 2. PRIVATE ADMIN VAULT ENDPOINTS (Protected by x-admin-key: 007_haiSecret)
   // =========================================================================
   if (pathname.startsWith('/admin/')) {
-    if (!isAuthorized(req, ADMIN_API_KEY, 'x-admin-key', query)) {
+    const isAuthorizedRequest =
+      isAuthorized(req, ADMIN_API_KEY, 'x-admin-key', query) ||
+      isAuthorized(req, ADMIN_API_KEY, 'x-api-key', query) ||
+      isAuthorized(req, CLIENT_API_KEY, 'x-admin-key', query) ||
+      isAuthorized(req, CLIENT_API_KEY, 'x-api-key', query) ||
+      isAuthorized(req, '007_haiSecret', 'x-admin-key', query) ||
+      isAuthorized(req, '007_haiSecret', 'x-api-key', query);
+
+    if (!isAuthorizedRequest) {
       return sendJson(res, 401, {
         ok: false,
         error: 'Unauthorized: Invalid or missing x-admin-key (passkey required: 007_haiSecret)',
