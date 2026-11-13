@@ -1,16 +1,20 @@
 /**
  * Vault — Modern Admin Dashboard Controller
- * Pure white theme, interactive docs modal, zero-downtime multi-account diagnostics.
+ * Pure white theme, interactive docs modal, zero-downtime multi-account diagnostics,
+ * and remote control plane for LinkedIn Voyager & SDUI endpoints.
  */
 
 let activeProvider = 'apollo';
 let vaultState = null;
+let endpointsData = null;
 let activeDocsLang = 'curl';
+let isAuditing = false;
 
 const PROVIDER_NAMES = {
   apollo: 'Apollo.io',
   hunter: 'Hunter.io',
   apify: 'Apify',
+  linkedin: 'LinkedIn Endpoints',
 };
 
 const CODE_TEMPLATES = {
@@ -154,6 +158,7 @@ async function verifyAndUnlock(passkey) {
         hideAuthOverlay();
         vaultState = json.data;
         renderUI();
+        fetchEndpoints();
         return true;
       }
     }
@@ -191,6 +196,33 @@ async function fetchVaultStatus() {
   }
 }
 
+async function fetchEndpoints() {
+  try {
+    const res = await fetch('/api/endpoints', {
+      headers: { 'x-api-key': getAdminPasskey() },
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.ok) {
+        endpointsData = json;
+        renderLinkedInWorkspace();
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch endpoints registry:', err);
+  }
+}
+
+function formatRelativeTime(timestamp) {
+  if (!timestamp) return 'Never';
+  const diff = Math.floor((Date.now() - timestamp) / 1000);
+  if (diff < 10) return 'Just now';
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return new Date(timestamp).toLocaleDateString();
+}
+
 function renderUI() {
   if (!vaultState) return;
 
@@ -211,7 +243,24 @@ function renderUI() {
   document.getElementById('badge-hunter').textContent = pools.hunter?.active || 0;
   document.getElementById('badge-apify').textContent = pools.apify?.active || 0;
 
-  // Current Provider Panel
+  const keyPoolWorkspace = document.getElementById('key-pool-workspace');
+  const linkedinWorkspace = document.getElementById('linkedin-endpoints-workspace');
+
+  if (activeProvider === 'linkedin') {
+    if (keyPoolWorkspace) keyPoolWorkspace.style.display = 'none';
+    if (linkedinWorkspace) linkedinWorkspace.style.display = 'flex';
+    if (!endpointsData) {
+      fetchEndpoints();
+    } else {
+      renderLinkedInWorkspace();
+    }
+    return;
+  }
+
+  // Regular key pool mode
+  if (keyPoolWorkspace) keyPoolWorkspace.style.display = 'grid';
+  if (linkedinWorkspace) linkedinWorkspace.style.display = 'none';
+
   const currentPool = pools[activeProvider] || { total: 0, active: 0, keys: [] };
   const provName = PROVIDER_NAMES[activeProvider] || activeProvider;
 
@@ -303,7 +352,156 @@ function renderUI() {
 }
 
 // =========================================================================
-// 3. INTERACTIVE DOCUMENTATION MODAL
+// 3. LINKEDIN ENDPOINTS WORKSPACE & SCORECARD
+// =========================================================================
+function renderLinkedInWorkspace() {
+  if (!endpointsData) return;
+
+  const endpoints = endpointsData.endpoints || {};
+  const keys = Object.keys(endpoints);
+
+  let healthyCount = 0;
+  let degradedCount = 0;
+
+  keys.forEach((k) => {
+    if (endpoints[k].status === 'healthy') healthyCount++;
+    else degradedCount++;
+  });
+
+  // Badge on tab
+  const badge = document.getElementById('badge-linkedin');
+  if (badge) {
+    if (degradedCount > 0) {
+      badge.textContent = `${degradedCount} Degraded`;
+      badge.className = 'tab-badge text-danger';
+    } else {
+      badge.textContent = `${healthyCount} Healthy`;
+      badge.className = 'tab-badge text-green';
+    }
+  }
+
+  // Summary header
+  const summary = document.getElementById('linkedin-scorecard-summary');
+  if (summary) {
+    summary.textContent = `${keys.length} Endpoints · ${healthyCount} Healthy · ${degradedCount} Degraded · Updated ${formatRelativeTime(endpointsData.updatedAt)}`;
+  }
+
+  // Audit status indicator
+  const auditTag = document.getElementById('audit-status-indicator');
+  if (auditTag && !isAuditing) {
+    if (endpointsData.auditRequestedAt) {
+      auditTag.textContent = `Audited ${formatRelativeTime(endpointsData.auditRequestedAt)}`;
+      auditTag.className = 'audit-status-tag';
+    } else {
+      auditTag.textContent = 'Audit Idle';
+      auditTag.className = 'audit-status-tag';
+    }
+  }
+
+  // Render cards grid
+  const grid = document.getElementById('endpoints-grid');
+  if (!grid) return;
+
+  grid.innerHTML = keys
+    .map((k) => {
+      const ep = endpoints[k];
+      const isHealthy = ep.status === 'healthy';
+      const statusClass = isHealthy ? 'status-active' : 'status-dead';
+      const statusLabel = isHealthy ? `🟢 Healthy (${ep.lastStatus || 200})` : `🔴 Degraded (${ep.lastStatus || 404})`;
+      const methodBadgeClass = ep.method === 'POST' ? 'post' : ep.method === 'GET' ? 'get' : 'put';
+
+      const sduiTag = ep.sduiid ? `<span class="tag-meta">SDUI: <code>${ep.sduiid}</code></span>` : '';
+      const queryIdTag = ep.queryId ? `<span class="tag-meta">QueryID: <code>${ep.queryId}</code></span>` : '';
+      const latencyTag = ep.lastLatencyMs ? `<span class="tag-meta">⏱️ ${ep.lastLatencyMs}ms</span>` : '';
+      const errorTag = ep.lastError ? `<span class="diag-error">${ep.lastError}</span>` : `<span class="diag-ok">Healthy</span>`;
+
+      return `
+      <div class="endpoint-card" data-key="${k}">
+        <div class="endpoint-card-head">
+          <div class="ep-title-group">
+            <span class="http-badge ${methodBadgeClass}">${ep.method}</span>
+            <span class="ep-name">${ep.name || k}</span>
+            <span class="key-code">${k}</span>
+          </div>
+          <div class="btn-group">
+            <span class="status-pill ${statusClass}">${statusLabel}</span>
+            <button type="button" class="btn-secondary btn-sm btn-edit-ep" data-key="${k}">
+              ✏️ Edit & Hot-Swap
+            </button>
+          </div>
+        </div>
+
+        <div class="endpoint-url-box">
+          <code>${ep.url}</code>
+          <button type="button" class="btn-copy-mini btn-copy-ep-url" data-url="${ep.url}">
+            📋 Copy URL
+          </button>
+        </div>
+
+        <div class="ep-meta-row">
+          <span>Checked: <b>${formatRelativeTime(ep.lastCheckedAt)}</b></span>
+          <span>Status: ${errorTag}</span>
+          ${latencyTag}
+          ${sduiTag}
+          ${queryIdTag}
+        </div>
+
+        <div class="capture-guide-box">
+          <div class="guide-title">🛠️ Developer F12 Capture Guide</div>
+          <div class="guide-grid">
+            <div><b>Page:</b> <a href="${ep.captureGuide?.pageUrl || 'https://www.linkedin.com/'}" target="_blank" rel="noopener noreferrer">${ep.captureGuide?.pageUrl || 'LinkedIn Page'}</a></div>
+            <div><b>Network Filter:</b> <code>${ep.captureGuide?.networkFilter || k}</code></div>
+            <div><b>Action:</b> ${ep.captureGuide?.action || 'Perform action'}</div>
+            <div><b>Copy Target:</b> ${ep.captureGuide?.copyTarget || 'Request URL'}</div>
+          </div>
+        </div>
+      </div>
+    `;
+    })
+    .join('');
+
+  // Wire Copy URL buttons
+  grid.querySelectorAll('.btn-copy-ep-url').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const url = btn.dataset.url;
+      navigator.clipboard.writeText(url);
+      btn.textContent = '✓ Copied';
+      setTimeout(() => (btn.textContent = '📋 Copy URL'), 1500);
+    });
+  });
+
+  // Wire Edit buttons
+  grid.querySelectorAll('.btn-edit-ep').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      openEditModal(btn.dataset.key);
+    });
+  });
+}
+
+// Edit Modal Functions
+function openEditModal(key) {
+  if (!endpointsData?.endpoints?.[key]) return;
+  const ep = endpointsData.endpoints[key];
+
+  document.getElementById('edit-endpoint-key').value = key;
+  document.getElementById('edit-endpoint-name').value = ep.name || key;
+  document.getElementById('edit-endpoint-method').value = ep.method || 'POST';
+  document.getElementById('edit-endpoint-url').value = ep.url || '';
+  document.getElementById('edit-endpoint-sduiid').value = ep.sduiid || '';
+  document.getElementById('edit-endpoint-queryid').value = ep.queryId || '';
+  document.getElementById('edit-reset-healthy').checked = true;
+
+  const modal = document.getElementById('modal-edit-endpoint');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeEditModal() {
+  const modal = document.getElementById('modal-edit-endpoint');
+  if (modal) modal.style.display = 'none';
+}
+
+// =========================================================================
+// 4. INTERACTIVE DOCUMENTATION MODAL
 // =========================================================================
 function updateDocsCode(lang) {
   activeDocsLang = lang;
@@ -336,7 +534,7 @@ function closeDocsModal() {
 }
 
 // =========================================================================
-// 4. EVENT LISTENERS & INITIALIZATION
+// 5. EVENT LISTENERS & INITIALIZATION
 // =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
   // Passkey Unlock Form
@@ -380,9 +578,132 @@ document.addEventListener('DOMContentLoaded', () => {
   const backdropDocs = document.getElementById('modal-docs-backdrop');
   if (backdropDocs) backdropDocs.addEventListener('click', closeDocsModal);
 
+  // Edit Modal Close Listeners
+  const btnCloseEdit = document.getElementById('btn-close-edit');
+  if (btnCloseEdit) btnCloseEdit.addEventListener('click', closeEditModal);
+
+  const btnCancelEdit = document.getElementById('btn-cancel-edit');
+  if (btnCancelEdit) btnCancelEdit.addEventListener('click', closeEditModal);
+
+  const backdropEdit = document.getElementById('modal-edit-backdrop');
+  if (backdropEdit) backdropEdit.addEventListener('click', closeEditModal);
+
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeDocsModal();
+    if (e.key === 'Escape') {
+      closeDocsModal();
+      closeEditModal();
+    }
   });
+
+  // Edit Form Submit
+  const formEdit = document.getElementById('form-edit-endpoint');
+  if (formEdit) {
+    formEdit.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const key = document.getElementById('edit-endpoint-key').value;
+      const name = document.getElementById('edit-endpoint-name').value;
+      const method = document.getElementById('edit-endpoint-method').value;
+      const url = document.getElementById('edit-endpoint-url').value;
+      const sduiid = document.getElementById('edit-endpoint-sduiid').value;
+      const queryId = document.getElementById('edit-endpoint-queryid').value;
+
+      const saveBtn = document.getElementById('btn-save-endpoint');
+      saveBtn.textContent = 'Saving...';
+      saveBtn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/endpoints/${encodeURIComponent(key)}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': getAdminPasskey(),
+          },
+          body: JSON.stringify({ name, method, url, sduiid, queryId }),
+        });
+
+        const json = await res.json();
+        if (json.ok) {
+          closeEditModal();
+          await fetchEndpoints();
+          alert(`Successfully updated and reset ${key} to Healthy!`);
+        } else {
+          alert(`Error saving endpoint: ${json.error}`);
+        }
+      } catch (err) {
+        alert(`Update request failed: ${err.message}`);
+      } finally {
+        saveBtn.textContent = '💾 Save & Hot-Update';
+        saveBtn.disabled = false;
+      }
+    });
+  }
+
+  // Audit Request Trigger Button ("🩺 Test All Endpoints")
+  const btnAudit = document.getElementById('btn-audit-request');
+  if (btnAudit) {
+    btnAudit.addEventListener('click', async () => {
+      btnAudit.textContent = '🩺 Triggering Audit...';
+      btnAudit.disabled = true;
+      isAuditing = true;
+
+      const auditTag = document.getElementById('audit-status-indicator');
+      if (auditTag) {
+        auditTag.textContent = 'Auditing Live...';
+        auditTag.className = 'audit-status-tag active';
+      }
+
+      try {
+        const res = await fetch('/api/endpoints/audit-request', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': getAdminPasskey(),
+          },
+        });
+        const json = await res.json();
+        if (json.ok) {
+          btnAudit.textContent = '🩺 Waiting for Extension...';
+
+          // Poll /api/endpoints every 2 seconds for 16 seconds to capture results pushed by extension
+          let pollCount = 0;
+          const pollInterval = setInterval(async () => {
+            pollCount++;
+            await fetchEndpoints();
+            if (pollCount >= 8) {
+              clearInterval(pollInterval);
+              isAuditing = false;
+              btnAudit.textContent = '🩺 Test All Endpoints';
+              btnAudit.disabled = false;
+              if (auditTag) {
+                auditTag.textContent = `Audited Just now`;
+                auditTag.className = 'audit-status-tag';
+              }
+            }
+          }, 2000);
+        } else {
+          alert(`Audit request error: ${json.error}`);
+          btnAudit.textContent = '🩺 Test All Endpoints';
+          btnAudit.disabled = false;
+          isAuditing = false;
+        }
+      } catch (err) {
+        alert(`Failed to trigger audit: ${err.message}`);
+        btnAudit.textContent = '🩺 Test All Endpoints';
+        btnAudit.disabled = false;
+        isAuditing = false;
+      }
+    });
+  }
+
+  // Refresh Endpoints Button
+  const btnRefresh = document.getElementById('btn-refresh-endpoints');
+  if (btnRefresh) {
+    btnRefresh.addEventListener('click', async () => {
+      btnRefresh.textContent = '🔄...';
+      await fetchEndpoints();
+      btnRefresh.textContent = '🔄 Refresh';
+    });
+  }
 
   // Docs Language Tabs Switcher
   document.querySelectorAll('.docs-tab-btn').forEach((btn) => {
@@ -523,5 +844,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial Fetch & Periodic Sync
   fetchVaultStatus();
-  setInterval(fetchVaultStatus, 10000);
+  fetchEndpoints();
+  setInterval(() => {
+    fetchVaultStatus();
+    if (activeProvider === 'linkedin') fetchEndpoints();
+  }, 10000);
 });

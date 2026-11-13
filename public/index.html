@@ -36,6 +36,68 @@
       </div>
     </div>
 
+    <!-- Edit LinkedIn Endpoint Modal -->
+    <div id="modal-edit-endpoint" class="modal-docs-overlay" style="display: none;">
+      <div class="modal-docs-backdrop" id="modal-edit-backdrop"></div>
+      <div class="modal-docs-dialog" style="max-width: 640px;">
+        <div class="modal-docs-header">
+          <div class="modal-header-info">
+            <div class="modal-badge-icon">✏️</div>
+            <div>
+              <h3 class="modal-title">Hot-Update LinkedIn Endpoint</h3>
+              <p class="modal-subtitle">Instant remote propagation to connected OutFox extensions</p>
+            </div>
+          </div>
+          <button type="button" class="modal-close-btn" id="btn-close-edit" aria-label="Close">✕</button>
+        </div>
+        <form id="form-edit-endpoint" class="edit-endpoint-form" onsubmit="return false;">
+          <div class="modal-docs-body" style="gap: 14px;">
+            <div class="form-group">
+              <label class="form-label">Endpoint Identifier</label>
+              <input type="text" id="edit-endpoint-key" class="auth-input" readonly style="background: var(--surface-subtle); font-family: var(--font-mono); font-weight: 700;" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Display Name</label>
+              <input type="text" id="edit-endpoint-name" class="auth-input" required />
+            </div>
+            <div class="form-row" style="display: grid; grid-template-columns: 140px 1fr; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label">HTTP Method</label>
+                <select id="edit-endpoint-method" class="auth-input" style="cursor: pointer;">
+                  <option value="POST">POST</option>
+                  <option value="GET">GET</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">URL Path & Query</label>
+                <textarea id="edit-endpoint-url" class="key-textarea" rows="3" style="min-height: 70px; margin-bottom: 0;" required></textarea>
+              </div>
+            </div>
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label">SDUI ID (Optional)</label>
+                <input type="text" id="edit-endpoint-sduiid" class="auth-input" placeholder="e.g. com.linkedin.sdui..." />
+              </div>
+              <div class="form-group">
+                <label class="form-label">GraphQL queryId (Optional)</label>
+                <input type="text" id="edit-endpoint-queryid" class="auth-input" placeholder="e.g. messengerConversations..." />
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer;">
+                <input type="checkbox" id="edit-reset-healthy" checked />
+                <span>Reset status to <b>🟢 Healthy</b> upon saving</span>
+              </label>
+            </div>
+          </div>
+          <div style="padding: 16px 26px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: #fdfefe;">
+            <button type="button" class="btn-secondary" id="btn-cancel-edit">Cancel</button>
+            <button type="submit" class="btn-orange" id="btn-save-endpoint">💾 Save & Hot-Update</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- In-App Interactive Documentation Modal -->
     <div id="modal-docs-overlay" class="modal-docs-overlay" style="display: none;">
       <div class="modal-docs-backdrop" id="modal-docs-backdrop"></div>
@@ -90,13 +152,13 @@
 
           <!-- Endpoint Reference Table -->
           <div class="docs-endpoints-summary">
-            <h4 class="docs-section-heading">Available Vault Proxy Endpoints</h4>
+            <h4 class="docs-section-heading">Available Vault Proxy & Control Plane Endpoints</h4>
             <div class="docs-table-wrap">
               <table class="docs-table">
                 <thead>
                   <tr>
                     <th>Method & Endpoint</th>
-                    <th>Routing / Fallback Strategy</th>
+                    <th>Routing / Strategy / Function</th>
                     <th>Auth Header</th>
                   </tr>
                 </thead>
@@ -119,6 +181,31 @@
                   <tr>
                     <td><span class="http-badge post">POST</span> <code>/api/scrape/apify</code></td>
                     <td>Direct Apify Actor Trigger (Task rotation)</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge get">GET</span> <code>/api/endpoints</code></td>
+                    <td>Fetch full LinkedIn Voyager/SDUI endpoint registry</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge put">PUT</span> <code>/api/endpoints/:key</code></td>
+                    <td>Hot-update endpoint URL, sduiid, queryId and reset healthy</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge post">POST</span> <code>/api/endpoints/audit-request</code></td>
+                    <td>Signal connected extensions to run read-only health audit</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge post">POST</span> <code>/api/endpoints/health</code></td>
+                    <td>Accept extension health check scorecard probe results</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge post">POST</span> <code>/api/endpoints/report</code></td>
+                    <td>Report broken endpoint + 12h deduplicated Telegram alert</td>
                     <td><code>x-api-key: 007_haiSecret</code></td>
                   </tr>
                   <tr>
@@ -203,10 +290,14 @@
               <span>⚡ Apify Scraper Pool</span>
               <span class="tab-badge" id="badge-apify">0</span>
             </button>
+            <button class="tab-btn" data-provider="linkedin">
+              <span>💼 LinkedIn Endpoints</span>
+              <span class="tab-badge text-orange" id="badge-linkedin">6 Healthy</span>
+            </button>
           </div>
 
-          <!-- Pool Workspace -->
-          <div class="pool-body">
+          <!-- Key Pool Workspace (Apollo, Hunter, Apify) -->
+          <div class="pool-body" id="key-pool-workspace">
             <!-- Left: Bulk Key Ingestion -->
             <div class="ingest-col">
               <div class="col-head">
@@ -265,6 +356,36 @@
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+
+          <!-- LinkedIn Endpoints Registry Workspace -->
+          <div class="linkedin-workspace" id="linkedin-endpoints-workspace" style="display: none;">
+            <!-- LinkedIn Header Bar & Health Scorecard -->
+            <div class="linkedin-header-bar">
+              <div class="linkedin-header-info">
+                <div class="linkedin-badge-wrap">
+                  <span class="linkedin-icon-box">💼</span>
+                  <div>
+                    <h3 class="linkedin-title">LinkedIn Voyager & SDUI Endpoints</h3>
+                    <span class="linkedin-sub" id="linkedin-scorecard-summary">6 Endpoints · 6 Healthy · 0 Degraded</span>
+                  </div>
+                </div>
+              </div>
+              <div class="linkedin-header-actions">
+                <span class="audit-status-tag" id="audit-status-indicator">Audit Idle</span>
+                <button type="button" class="btn-orange" id="btn-audit-request">
+                  🩺 Test All Endpoints
+                </button>
+                <button type="button" class="btn-secondary" id="btn-refresh-endpoints">
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+
+            <!-- Endpoints Cards Grid -->
+            <div class="endpoints-grid" id="endpoints-grid">
+              <!-- Dynamically populated by app.js -->
             </div>
           </div>
         </section>

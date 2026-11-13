@@ -30,6 +30,7 @@ const pool = require('./engine/key-pool');
 const apollo = require('./engine/apollo-adapter');
 const hunter = require('./engine/hunter-adapter');
 const apify = require('./engine/apify-adapter');
+const endpointRegistry = require('./engine/endpoint-registry');
 
 const PORT = process.env.PORT || 4000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -42,7 +43,7 @@ function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-admin-key',
   });
   res.end(JSON.stringify(data));
@@ -68,8 +69,9 @@ function isAuthorized(req, expectedKey, headerName = 'x-api-key', query = {}) {
   const authHeader = req.headers['authorization'] || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   const customHeader = req.headers[headerName] || req.headers[headerName.toLowerCase()] || '';
+  const altHeader = req.headers['x-admin-key'] || req.headers['x-api-key'] || '';
   const queryParam = query[headerName] || query['key'] || query['admin_key'] || query['api_key'] || '';
-  return customHeader === expectedKey || bearerToken === expectedKey || queryParam === expectedKey;
+  return customHeader === expectedKey || altHeader === expectedKey || bearerToken === expectedKey || queryParam === expectedKey;
 }
 
 function serveStatic(res, filePath) {
@@ -116,7 +118,7 @@ const server = http.createServer(async (req, res) => {
   if (method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-admin-key',
     });
     return res.end();
@@ -134,7 +136,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // =========================================================================
-  // 1. CLIENT ENRICHMENT ENDPOINTS (Protected by x-api-key: 007_haiSecret)
+  // 1. API ENDPOINTS (Protected by x-api-key: 007_haiSecret)
   // =========================================================================
   if (pathname.startsWith('/api/')) {
     if (!isAuthorized(req, CLIENT_API_KEY, 'x-api-key', query)) {
@@ -144,7 +146,80 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // A. Master Waterfall Endpoint (Hunter -> Apollo -> Pattern Generator)
+    // -----------------------------------------------------------------------
+    // A. LINKEDIN DYNAMIC ENDPOINT REGISTRY & HEALTH AUDIT
+    // -----------------------------------------------------------------------
+
+    // 1. Fetch all LinkedIn endpoints & audit state
+    if (pathname === '/api/endpoints' && method === 'GET') {
+      const data = endpointRegistry.getEndpoints();
+      return sendJson(res, 200, {
+        ok: true,
+        updatedAt: data.updatedAt,
+        auditRequestedAt: data.auditRequestedAt,
+        endpoints: data.endpoints,
+      });
+    }
+
+    // 2. Request an audit probe across all connected extensions
+    if (pathname === '/api/endpoints/audit-request' && method === 'POST') {
+      const auditRequestedAt = endpointRegistry.requestAudit();
+      return sendJson(res, 200, { ok: true, auditRequestedAt });
+    }
+
+    // 3. Receive extension audit probe scorecard results
+    if (pathname === '/api/endpoints/health' && method === 'POST') {
+      try {
+        const payload = await parseJsonBody(req);
+        const result = endpointRegistry.recordHealth(payload.results || payload);
+        return sendJson(res, 200, { ok: true, data: result });
+      } catch (err) {
+        return sendJson(res, 400, { ok: false, error: err.message });
+      }
+    }
+
+    // 4. Report broken / changed endpoint with 12-hour deduplicated Telegram alert
+    if (pathname === '/api/endpoints/report' && method === 'POST') {
+      try {
+        const { key, status, url, error } = await parseJsonBody(req);
+        if (!key) return sendJson(res, 400, { ok: false, error: 'key is required' });
+        const result = await endpointRegistry.reportFailure({ key, status, url, error });
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 5. Update endpoint via PUT /api/endpoints/:key
+    if (pathname.startsWith('/api/endpoints/') && method === 'PUT') {
+      try {
+        const key = pathname.slice('/api/endpoints/'.length).trim();
+        if (!key) return sendJson(res, 400, { ok: false, error: 'Endpoint key is required in path' });
+        const payload = await parseJsonBody(req);
+        const updated = endpointRegistry.updateEndpoint(key, payload);
+        return sendJson(res, 200, { ok: true, key, endpoint: updated });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 6. Update endpoint via POST /api/endpoints/update
+    if (pathname === '/api/endpoints/update' && method === 'POST') {
+      try {
+        const payload = await parseJsonBody(req);
+        if (!payload.key) return sendJson(res, 400, { ok: false, error: 'key is required' });
+        const updated = endpointRegistry.updateEndpoint(payload.key, payload);
+        return sendJson(res, 200, { ok: true, key: payload.key, endpoint: updated });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // B. ENRICHMENT PROXY POOLS
+    // -----------------------------------------------------------------------
+
+    // Master Waterfall Endpoint (Hunter -> Apollo -> Pattern Generator)
     if (pathname === '/api/enrich/waterfall' && method === 'POST') {
       try {
         const payload = await parseJsonBody(req);
@@ -207,7 +282,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // B. Apollo Direct Pool
+    // Apollo Direct Pool
     if (pathname === '/api/enrich/apollo' && method === 'POST') {
       try {
         const payload = await parseJsonBody(req);
@@ -230,7 +305,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // C. Hunter Direct Pool
+    // Hunter Direct Pool
     if (pathname === '/api/enrich/hunter' && method === 'POST') {
       try {
         const payload = await parseJsonBody(req);
@@ -251,7 +326,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // D. Apify Direct Pool
+    // Apify Direct Pool
     if (pathname === '/api/scrape/apify' && method === 'POST') {
       try {
         const payload = await parseJsonBody(req);
@@ -355,5 +430,6 @@ server.listen(PORT, () => {
   console.log(`🔑 Client API Key:     ${CLIENT_API_KEY ? 'Configured (007_haiSecret)' : 'Open'}`);
   console.log(`📊 Admin Web UI:       http://localhost:${PORT}/`);
   console.log(`⚡ Master Waterfall:   https://vault.api.crafture.space/api/enrich/waterfall`);
+  console.log(`🌐 LinkedIn Endpoints: https://vault.api.crafture.space/api/endpoints`);
   console.log(`=============================================================\n`);
 });
