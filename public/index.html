@@ -98,6 +98,45 @@
       </div>
     </div>
 
+    <!-- Register Alert Bot Modal -->
+    <div id="modal-add-bot" class="modal-docs-overlay" style="display: none;">
+      <div class="modal-docs-backdrop" id="modal-add-bot-backdrop"></div>
+      <div class="modal-docs-dialog" style="max-width: 540px;">
+        <div class="modal-docs-header">
+          <div class="modal-header-info">
+            <div class="modal-badge-icon">🤖</div>
+            <div>
+              <h3 class="modal-title">Register Telegram Alert Bot</h3>
+              <p class="modal-subtitle">Broadcasts instant degradation alerts & F12 capture guides</p>
+            </div>
+          </div>
+          <button type="button" class="modal-close-btn" id="btn-close-add-bot" aria-label="Close">✕</button>
+        </div>
+        <form id="form-add-bot" onsubmit="return false;">
+          <div class="modal-docs-body" style="gap: 14px;">
+            <div class="form-group">
+              <label class="form-label">Bot Label / Friendly Name</label>
+              <input type="text" id="add-bot-label" class="auth-input" placeholder="e.g. Aditya Personal Alerts or Dev Channel" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Telegram Bot Token (from @BotFather)</label>
+              <input type="password" id="add-bot-token" class="auth-input" placeholder="e.g. 7123456789:AAHfkj..." required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Chat ID or Group ID</label>
+              <input type="text" id="add-bot-chatid" class="auth-input" placeholder="e.g. 987654321 or -100123456789" required />
+              <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">Get your personal ID by messaging <code>@userinfobot</code> in Telegram.</span>
+            </div>
+            <div id="add-bot-error" class="auth-error-box" style="display: none;"></div>
+          </div>
+          <div style="padding: 16px 26px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: #fdfefe;">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-bot">Cancel</button>
+            <button type="submit" class="btn-orange" id="btn-save-bot">➕ Add Alert Bot</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- In-App Interactive Documentation Modal -->
     <div id="modal-docs-overlay" class="modal-docs-overlay" style="display: none;">
       <div class="modal-docs-backdrop" id="modal-docs-backdrop"></div>
@@ -205,7 +244,22 @@
                   </tr>
                   <tr>
                     <td><span class="http-badge post">POST</span> <code>/api/endpoints/report</code></td>
-                    <td>Report broken endpoint + 12h deduplicated Telegram alert</td>
+                    <td>Report broken endpoint + simultaneous Telegram multi-bot alert</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge get">GET</span> <code>/api/alert-bots</code></td>
+                    <td>List all registered Telegram alert bots (masked tokens)</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge post">POST</span> <code>/api/alert-bots</code></td>
+                    <td>Register a new Telegram bot (token, chatId, label)</td>
+                    <td><code>x-api-key: 007_haiSecret</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="http-badge post">POST</span> <code>/api/alert-bots/test</code></td>
+                    <td>Send simultaneous test alert to all enabled bots</td>
                     <td><code>x-api-key: 007_haiSecret</code></td>
                   </tr>
                   <tr>
@@ -380,6 +434,32 @@
                 <button type="button" class="btn-secondary" id="btn-refresh-endpoints">
                   🔄 Refresh
                 </button>
+              </div>
+            </div>
+
+            <!-- Developer Alert Telegram Bots Control Panel -->
+            <div class="alert-bots-panel">
+              <div class="alert-bots-header">
+                <div class="bots-header-title">
+                  <div class="bots-icon-box">🤖</div>
+                  <div>
+                    <h4 class="bots-heading">Developer Alert Telegram Bots</h4>
+                    <span class="bots-sub" id="bots-count-summary">0 Active Bots · Broadcast simultaneously via Promise.allSettled</span>
+                  </div>
+                </div>
+                <div class="bots-actions">
+                  <button type="button" class="btn-secondary" id="btn-open-add-bot">
+                    ➕ Add Telegram Bot
+                  </button>
+                  <button type="button" class="btn-orange" id="btn-test-alert-bots">
+                    🔔 Send Test Alert
+                  </button>
+                </div>
+              </div>
+
+              <!-- Bots Grid -->
+              <div class="bots-grid" id="bots-grid">
+                <!-- Dynamically populated by app.js -->
               </div>
             </div>
 

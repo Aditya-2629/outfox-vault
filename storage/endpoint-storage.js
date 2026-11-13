@@ -156,3 +156,4 @@ module.exports = {
   writeEndpoints,
   DEFAULT_REGISTRY,
 };
+

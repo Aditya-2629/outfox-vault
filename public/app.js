@@ -1,12 +1,13 @@
 /**
  * Vault — Modern Admin Dashboard Controller
  * Pure white theme, interactive docs modal, zero-downtime multi-account diagnostics,
- * and remote control plane for LinkedIn Voyager & SDUI endpoints.
+ * remote control plane for LinkedIn Voyager & SDUI endpoints, and dynamic Multi-Bot Telegram alert manager.
  */
 
 let activeProvider = 'apollo';
 let vaultState = null;
 let endpointsData = null;
+let alertBots = [];
 let activeDocsLang = 'curl';
 let isAuditing = false;
 
@@ -159,6 +160,7 @@ async function verifyAndUnlock(passkey) {
         vaultState = json.data;
         renderUI();
         fetchEndpoints();
+        fetchAlertBots();
         return true;
       }
     }
@@ -213,6 +215,23 @@ async function fetchEndpoints() {
   }
 }
 
+async function fetchAlertBots() {
+  try {
+    const res = await fetch('/api/alert-bots', {
+      headers: { 'x-api-key': getAdminPasskey() },
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.ok) {
+        alertBots = json.bots || [];
+        renderBotsGrid();
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch alert bots:', err);
+  }
+}
+
 function formatRelativeTime(timestamp) {
   if (!timestamp) return 'Never';
   const diff = Math.floor((Date.now() - timestamp) / 1000);
@@ -254,6 +273,7 @@ function renderUI() {
     } else {
       renderLinkedInWorkspace();
     }
+    fetchAlertBots();
     return;
   }
 
@@ -478,7 +498,129 @@ function renderLinkedInWorkspace() {
   });
 }
 
-// Edit Modal Functions
+// =========================================================================
+// 4. DYNAMIC MULTI-BOT TELEGRAM MANAGER
+// =========================================================================
+function renderBotsGrid() {
+  const container = document.getElementById('bots-grid');
+  const countSummary = document.getElementById('bots-count-summary');
+  if (!container) return;
+
+  const activeCount = alertBots.filter((b) => b.enabled !== false).length;
+  if (countSummary) {
+    countSummary.textContent = `${activeCount} of ${alertBots.length} Active · Simultaneous broadcast on failure`;
+  }
+
+  if (alertBots.length === 0) {
+    container.innerHTML = `
+      <div class="empty-bots-note">
+        No alert bots registered yet. Click <b>"➕ Add Telegram Bot"</b> above to connect your bot token and chat ID.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = alertBots
+    .map((bot) => {
+      const isEnabled = bot.enabled !== false;
+      const statusPill = isEnabled
+        ? `<span class="status-pill status-active">🟢 Active</span>`
+        : `<span class="status-pill status-dead">⚪ Disabled</span>`;
+      const toggleLabel = isEnabled ? '⏸️ Disable' : '▶️ Enable';
+
+      return `
+      <div class="bot-card ${isEnabled ? '' : 'disabled'}" data-id="${bot.id}">
+        <div class="bot-card-head">
+          <span class="bot-name">${bot.label || 'Telegram Bot'}</span>
+          ${statusPill}
+        </div>
+        <div class="bot-details">
+          <span>Token: <code>${bot.botToken}</code></span>
+          <span>Chat ID: <code>${bot.chatId}</code></span>
+          <span style="color: var(--text-muted); font-size: 11px;">Added ${formatRelativeTime(bot.createdAt)}</span>
+        </div>
+        <div class="bot-actions-row">
+          <button type="button" class="action-btn-mini btn-toggle-bot" data-id="${bot.id}" data-enabled="${!isEnabled}">
+            ${toggleLabel}
+          </button>
+          <button type="button" class="action-btn-mini action-btn-del btn-delete-bot" data-id="${bot.id}" title="Remove Bot">
+            🗑️ Delete
+          </button>
+        </div>
+      </div>
+    `;
+    })
+    .join('');
+
+  // Wire Toggle Buttons
+  container.querySelectorAll('.btn-toggle-bot').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const shouldEnable = btn.dataset.enabled === 'true';
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/api/alert-bots/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': getAdminPasskey(),
+          },
+          body: JSON.stringify({ enabled: shouldEnable }),
+        });
+        const json = await res.json();
+        if (json.ok) {
+          fetchAlertBots();
+        } else {
+          alert(`Error toggling bot: ${json.error}`);
+        }
+      } catch (err) {
+        alert(`Request failed: ${err.message}`);
+      }
+    });
+  });
+
+  // Wire Delete Buttons
+  container.querySelectorAll('.btn-delete-bot').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      if (confirm('Are you sure you want to remove this Telegram Alert Bot?')) {
+        try {
+          const res = await fetch(`/api/alert-bots/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-api-key': getAdminPasskey() },
+          });
+          const json = await res.json();
+          if (json.ok) {
+            fetchAlertBots();
+          } else {
+            alert(`Error deleting bot: ${json.error}`);
+          }
+        } catch (err) {
+          alert(`Request failed: ${err.message}`);
+        }
+      }
+    });
+  });
+}
+
+function openAddBotModal() {
+  const modal = document.getElementById('modal-add-bot');
+  const errorBox = document.getElementById('add-bot-error');
+  if (errorBox) errorBox.style.display = 'none';
+
+  document.getElementById('add-bot-label').value = '';
+  document.getElementById('add-bot-token').value = '';
+  document.getElementById('add-bot-chatid').value = '';
+
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeAddBotModal() {
+  const modal = document.getElementById('modal-add-bot');
+  if (modal) modal.style.display = 'none';
+}
+
+// Edit Endpoint Modal Functions
 function openEditModal(key) {
   if (!endpointsData?.endpoints?.[key]) return;
   const ep = endpointsData.endpoints[key];
@@ -501,7 +643,7 @@ function closeEditModal() {
 }
 
 // =========================================================================
-// 4. INTERACTIVE DOCUMENTATION MODAL
+// 5. INTERACTIVE DOCUMENTATION MODAL
 // =========================================================================
 function updateDocsCode(lang) {
   activeDocsLang = lang;
@@ -534,7 +676,7 @@ function closeDocsModal() {
 }
 
 // =========================================================================
-// 5. EVENT LISTENERS & INITIALIZATION
+// 6. EVENT LISTENERS & INITIALIZATION
 // =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
   // Passkey Unlock Form
@@ -588,14 +730,124 @@ document.addEventListener('DOMContentLoaded', () => {
   const backdropEdit = document.getElementById('modal-edit-backdrop');
   if (backdropEdit) backdropEdit.addEventListener('click', closeEditModal);
 
+  // Add Bot Modal Listeners
+  const btnOpenAddBot = document.getElementById('btn-open-add-bot');
+  if (btnOpenAddBot) btnOpenAddBot.addEventListener('click', openAddBotModal);
+
+  const btnCloseAddBot = document.getElementById('btn-close-add-bot');
+  if (btnCloseAddBot) btnCloseAddBot.addEventListener('click', closeAddBotModal);
+
+  const btnCancelAddBot = document.getElementById('btn-cancel-add-bot');
+  if (btnCancelAddBot) btnCancelAddBot.addEventListener('click', closeAddBotModal);
+
+  const backdropAddBot = document.getElementById('modal-add-bot-backdrop');
+  if (backdropAddBot) backdropAddBot.addEventListener('click', closeAddBotModal);
+
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeDocsModal();
       closeEditModal();
+      closeAddBotModal();
     }
   });
 
-  // Edit Form Submit
+  // Add Bot Form Submit
+  const formAddBot = document.getElementById('form-add-bot');
+  if (formAddBot) {
+    formAddBot.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const label = document.getElementById('add-bot-label').value.trim();
+      const botToken = document.getElementById('add-bot-token').value.trim();
+      const chatId = document.getElementById('add-bot-chatid').value.trim();
+      const errorBox = document.getElementById('add-bot-error');
+
+      if (!botToken || !chatId) {
+        if (errorBox) {
+          errorBox.textContent = 'Bot Token and Chat ID are both required.';
+          errorBox.style.display = 'block';
+        }
+        return;
+      }
+
+      const saveBtn = document.getElementById('btn-save-bot');
+      saveBtn.textContent = 'Registering...';
+      saveBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/alert-bots', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': getAdminPasskey(),
+          },
+          body: JSON.stringify({ label, botToken, chatId }),
+        });
+
+        const json = await res.json();
+        if (json.ok) {
+          closeAddBotModal();
+          fetchAlertBots();
+          alert(`Successfully registered alert bot: "${json.bot.label}"!`);
+        } else {
+          if (errorBox) {
+            errorBox.textContent = json.error || 'Failed to add bot';
+            errorBox.style.display = 'block';
+          }
+        }
+      } catch (err) {
+        if (errorBox) {
+          errorBox.textContent = `Network error: ${err.message}`;
+          errorBox.style.display = 'block';
+        }
+      } finally {
+        saveBtn.textContent = '➕ Add Bot';
+        saveBtn.disabled = false;
+      }
+    });
+  }
+
+  // Send Test Alert Button ("🔔 Send Test Alert")
+  const btnTestAlerts = document.getElementById('btn-test-alert-bots');
+  if (btnTestAlerts) {
+    btnTestAlerts.addEventListener('click', async () => {
+      btnTestAlerts.textContent = '🔔 Broadcasting...';
+      btnTestAlerts.disabled = true;
+
+      try {
+        const res = await fetch('/api/alert-bots/test', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': getAdminPasskey(),
+          },
+        });
+
+        const json = await res.json();
+        if (json.ok && json.report) {
+          const report = json.report;
+          if (report.total === 0) {
+            alert('No enabled Telegram bots registered in Vault yet! Please click "➕ Add Telegram Bot" first.');
+          } else {
+            const summaryLines = (report.results || []).map(
+              (r) => `${r.ok ? '✅' : '❌'} ${r.label} (Chat: ${r.chatId}): ${r.ok ? 'Delivered' : r.error}`
+            );
+            alert(
+              `Simultaneous Broadcast Report:\n${report.sent}/${report.total} Bots Delivered Successfully!\n\n${summaryLines.join('\n')}`
+            );
+          }
+        } else {
+          alert(`Test broadcast error: ${json.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        alert(`Failed to send test alert: ${err.message}`);
+      } finally {
+        btnTestAlerts.textContent = '🔔 Send Test Alert';
+        btnTestAlerts.disabled = false;
+      }
+    });
+  }
+
+  // Edit Endpoint Form Submit
   const formEdit = document.getElementById('form-edit-endpoint');
   if (formEdit) {
     formEdit.addEventListener('submit', async (e) => {
@@ -701,6 +953,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnRefresh.addEventListener('click', async () => {
       btnRefresh.textContent = '🔄...';
       await fetchEndpoints();
+      await fetchAlertBots();
       btnRefresh.textContent = '🔄 Refresh';
     });
   }
@@ -845,8 +1098,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial Fetch & Periodic Sync
   fetchVaultStatus();
   fetchEndpoints();
+  fetchAlertBots();
   setInterval(() => {
     fetchVaultStatus();
-    if (activeProvider === 'linkedin') fetchEndpoints();
+    if (activeProvider === 'linkedin') {
+      fetchEndpoints();
+      fetchAlertBots();
+    }
   }, 10000);
 });

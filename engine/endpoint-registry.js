@@ -4,6 +4,7 @@
  */
 
 const { readEndpoints, writeEndpoints } = require('../storage/endpoint-storage');
+const alertBotManager = require('./alert-bot-manager');
 
 let registry = readEndpoints();
 
@@ -137,10 +138,10 @@ async function reportFailure({ key, status, url, error }) {
   const TWELVE_HOURS = 12 * 60 * 60 * 1000;
   const shouldAlert = !ep.lastAlertedAt || now - ep.lastAlertedAt > TWELVE_HOURS;
 
-  let alertSent = false;
+  let broadcastResult = null;
   if (shouldAlert) {
     ep.lastAlertedAt = now; // Mark alerted timestamp for 12h cooldown
-    alertSent = await sendTelegramAlert({
+    broadcastResult = await sendTelegramAlert({
       key,
       status: ep.lastStatus,
       url: url || ep.url,
@@ -156,23 +157,16 @@ async function reportFailure({ key, status, url, error }) {
     ok: true,
     key,
     status: 'degraded',
-    alerted: alertSent,
+    alerted: Boolean(broadcastResult && broadcastResult.sent > 0),
     deduplicated: !shouldAlert,
+    broadcast: broadcastResult || undefined,
   };
 }
 
 /**
- * Send step-by-step Developer Capture Guide via Telegram Bot API
+ * Broadcast step-by-step Developer Capture Guide via dynamic Multi-Bot Manager
  */
 async function sendTelegramAlert({ key, status, url, error, captureGuide = {} }) {
-  const botToken = process.env.DEV_TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.DEV_TELEGRAM_CHAT_ID;
-
-  if (!botToken || !chatId) {
-    console.log('[Endpoints Alert] Telegram alert skipped: DEV_TELEGRAM_BOT_TOKEN or DEV_TELEGRAM_CHAT_ID not configured.');
-    return false;
-  }
-
   const escapeHtml = (str) =>
     String(str || '')
       .replace(/&/g, '&amp;')
@@ -198,29 +192,7 @@ async function sendTelegramAlert({ key, status, url, error, captureGuide = {} })
     `https://vault.api.crafture.space/`,
   ].join('\n');
 
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: msg,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      }),
-    });
-
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      console.error('[Endpoints Alert] Telegram API error:', json.description || res.status);
-      return false;
-    }
-    console.log(`[Endpoints Alert] Telegram alert dispatched successfully for ${key}`);
-    return true;
-  } catch (err) {
-    console.error('[Endpoints Alert] Failed to dispatch Telegram alert:', err.message);
-    return false;
-  }
+  return await alertBotManager.broadcastAlert(msg);
 }
 
 module.exports = {

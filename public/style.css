@@ -401,9 +401,9 @@ code, pre {
   background: var(--primary);
   color: #ffffff;
   border: none;
-  padding: 10px 18px;
+  padding: 9px 16px;
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -445,7 +445,7 @@ code, pre {
 }
 
 .btn-secondary.btn-sm {
-  padding: 5px 10px;
+  padding: 4px 10px;
   font-size: 11.5px;
 }
 
@@ -722,6 +722,134 @@ code, pre {
   animation: pulse 1.5s infinite;
 }
 
+/* =========================================================================
+   Developer Alert Telegram Bots Panel
+   ========================================================================= */
+.alert-bots-panel {
+  background: var(--surface-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.alert-bots-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.bots-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bots-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: #fef3c7;
+  color: #b45309;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  border: 1px solid #fde68a;
+}
+
+.bots-heading {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.bots-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.bots-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 12px;
+}
+
+.bot-card {
+  background: #fbfcfe;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.bot-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.bot-card.disabled {
+  opacity: 0.55;
+  background: #f8fafc;
+}
+
+.bot-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bot-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.bot-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.bot-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.empty-bots-note {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 16px 0;
+  text-align: center;
+  grid-column: 1 / -1;
+}
+
+/* =========================================================================
+   Endpoints Cards Grid
+   ========================================================================= */
 .endpoints-grid {
   display: grid;
   grid-template-columns: 1fr;

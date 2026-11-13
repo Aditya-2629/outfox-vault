@@ -31,6 +31,7 @@ const apollo = require('./engine/apollo-adapter');
 const hunter = require('./engine/hunter-adapter');
 const apify = require('./engine/apify-adapter');
 const endpointRegistry = require('./engine/endpoint-registry');
+const alertBotManager = require('./engine/alert-bot-manager');
 
 const PORT = process.env.PORT || 4000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -43,7 +44,7 @@ function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-admin-key',
   });
   res.end(JSON.stringify(data));
@@ -118,7 +119,7 @@ const server = http.createServer(async (req, res) => {
   if (method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-admin-key',
     });
     return res.end();
@@ -216,7 +217,73 @@ const server = http.createServer(async (req, res) => {
     }
 
     // -----------------------------------------------------------------------
-    // B. ENRICHMENT PROXY POOLS
+    // B. DYNAMIC MULTI-BOT TELEGRAM ALERT MANAGER
+    // -----------------------------------------------------------------------
+
+    // 1. Get list of alert bots (masked tokens for UI display)
+    if (pathname === '/api/alert-bots' && method === 'GET') {
+      const bots = alertBotManager.getBots(true);
+      return sendJson(res, 200, { ok: true, bots });
+    }
+
+    // 2. Add new alert bot
+    if (pathname === '/api/alert-bots' && method === 'POST') {
+      try {
+        const payload = await parseJsonBody(req);
+        const bot = alertBotManager.addBot(payload);
+        return sendJson(res, 201, { ok: true, bot });
+      } catch (err) {
+        return sendJson(res, 400, { ok: false, error: err.message });
+      }
+    }
+
+    // 3. Send test alert simultaneously to all enabled bots
+    if (pathname === '/api/alert-bots/test' && method === 'POST') {
+      try {
+        const report = await alertBotManager.sendTestAlert();
+        return sendJson(res, 200, { ok: true, report });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 4. Update alert bot via PATCH /api/alert-bots/:id
+    if (pathname.startsWith('/api/alert-bots/') && method === 'PATCH') {
+      try {
+        const id = pathname.slice('/api/alert-bots/'.length).trim();
+        if (!id) return sendJson(res, 400, { ok: false, error: 'Bot ID required' });
+        const payload = await parseJsonBody(req);
+        const bot = alertBotManager.updateBot(id, payload);
+        return sendJson(res, 200, { ok: true, bot });
+      } catch (err) {
+        return sendJson(res, 400, { ok: false, error: err.message });
+      }
+    }
+
+    // 5. Update alert bot via POST /api/alert-bots/update
+    if (pathname === '/api/alert-bots/update' && method === 'POST') {
+      try {
+        const payload = await parseJsonBody(req);
+        if (!payload.id) return sendJson(res, 400, { ok: false, error: 'id is required' });
+        const bot = alertBotManager.updateBot(payload.id, payload);
+        return sendJson(res, 200, { ok: true, bot });
+      } catch (err) {
+        return sendJson(res, 400, { ok: false, error: err.message });
+      }
+    }
+
+    // 6. Delete alert bot via DELETE /api/alert-bots/:id or query param
+    if ((pathname.startsWith('/api/alert-bots/') || pathname === '/api/alert-bots') && method === 'DELETE') {
+      const id = pathname.startsWith('/api/alert-bots/')
+        ? pathname.slice('/api/alert-bots/'.length).trim()
+        : query.id;
+      if (!id) return sendJson(res, 400, { ok: false, error: 'Bot ID required' });
+      const deleted = alertBotManager.deleteBot(id);
+      return sendJson(res, 200, { ok: deleted, id });
+    }
+
+    // -----------------------------------------------------------------------
+    // C. ENRICHMENT PROXY POOLS
     // -----------------------------------------------------------------------
 
     // Master Waterfall Endpoint (Hunter -> Apollo -> Pattern Generator)
@@ -431,5 +498,8 @@ server.listen(PORT, () => {
   console.log(`📊 Admin Web UI:       http://localhost:${PORT}/`);
   console.log(`⚡ Master Waterfall:   https://vault.api.crafture.space/api/enrich/waterfall`);
   console.log(`🌐 LinkedIn Endpoints: https://vault.api.crafture.space/api/endpoints`);
+  console.log(`🤖 Multi-Bot Manager:  https://vault.api.crafture.space/api/alert-bots`);
   console.log(`=============================================================\n`);
 });
+
+module.exports = server;
