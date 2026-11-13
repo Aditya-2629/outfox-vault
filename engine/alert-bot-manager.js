@@ -112,23 +112,59 @@ function deleteBot(id) {
 }
 
 /**
- * Dispatch an HTML message to a single Telegram Bot
+ * Dispatch a message to a single Telegram Bot with automatic plain-text fallback
  */
-async function sendTelegramMessage(bot, messageHtml) {
+async function sendTelegramMessage(bot, messageText, options = {}) {
   const endpoint = `https://api.telegram.org/bot${bot.botToken}/sendMessage`;
-  try {
-    const res = await fetch(endpoint, {
+  const parseMode =
+    options.parse_mode !== undefined
+      ? options.parse_mode
+      : messageText.includes('<') && messageText.includes('>')
+      ? 'HTML'
+      : 'Markdown';
+
+  const sendPayload = (body) =>
+    fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: bot.chatId,
-        text: messageHtml,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      }),
+      body: JSON.stringify(body),
     });
 
-    const json = await res.json().catch(() => ({}));
+  try {
+    const payload = {
+      chat_id: bot.chatId,
+      text: messageText,
+      disable_web_page_preview: true,
+    };
+    if (parseMode) {
+      payload.parse_mode = parseMode;
+    }
+
+    let res = await sendPayload(payload);
+    let json = await res.json().catch(() => ({}));
+
+    // If initial sendMessage with parse_mode fails (e.g. Markdown underscores error in URLs),
+    // automatically retry as plain text (without parse_mode) so alerts are never dropped.
+    if (!res.ok && parseMode) {
+      console.warn(
+        `[Alert Bot Manager] Telegram sendMessage with parse_mode="${parseMode}" failed for bot ${bot.id} (${json.description || res.status}). Retrying as plain text without parse_mode...`
+      );
+
+      const plainText =
+        messageText.includes('<') && messageText.includes('>')
+          ? messageText.replace(/<[^>]*>/g, '')
+          : messageText;
+
+      const retryPayload = {
+        chat_id: bot.chatId,
+        text: plainText,
+        disable_web_page_preview: true,
+      };
+
+      res = await sendPayload(retryPayload);
+      json = await res.json().catch(() => ({}));
+    }
+
     if (!res.ok) {
       const errMsg = json.description || `HTTP ${res.status}`;
       return { ok: false, botId: bot.id, label: bot.label, chatId: bot.chatId, error: errMsg };
@@ -142,7 +178,7 @@ async function sendTelegramMessage(bot, messageHtml) {
 /**
  * Broadcast an identical alert message to ALL enabled bots simultaneously
  */
-async function broadcastAlert(messageHtml) {
+async function broadcastAlert(messageText, options = {}) {
   const bots = readBots();
   const activeBots = bots.filter((b) => b.enabled !== false);
 
@@ -153,7 +189,7 @@ async function broadcastAlert(messageHtml) {
 
   console.log(`[Alert Bot Manager] Broadcasting alert to ${activeBots.length} active bot(s)...`);
 
-  const deliveryPromises = activeBots.map((bot) => sendTelegramMessage(bot, messageHtml));
+  const deliveryPromises = activeBots.map((bot) => sendTelegramMessage(bot, messageText, options));
   const settled = await Promise.allSettled(deliveryPromises);
 
   const results = settled.map((item, idx) => {
@@ -196,7 +232,7 @@ async function sendTestAlert() {
     `✅ <i>If you are reading this, this Telegram Bot is successfully connected and will receive real-time LinkedIn endpoint failure alerts & F12 capture guides.</i>`,
   ].join('\n');
 
-  return await broadcastAlert(testMsg);
+  return await broadcastAlert(testMsg, { parse_mode: 'HTML' });
 }
 
 module.exports = {

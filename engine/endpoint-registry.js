@@ -52,17 +52,17 @@ function updateEndpoint(key, updates = {}) {
   if (updates.sduiid !== undefined) ep.sduiid = updates.sduiid.trim();
   if (updates.queryId !== undefined) ep.queryId = updates.queryId.trim();
 
-  // Reset health status and clear previous alerts
+  // Reset health status and reset 12h alert cooldown whenever edited
   ep.status = 'healthy';
   ep.lastStatus = 200;
   ep.lastError = null;
-  ep.lastAlertedAt = null;
+  ep.lastAlertedAt = 0; // Reset 12h alert cooldown so newly reported failures alert immediately
   ep.lastCheckedAt = Date.now();
 
   registry.updatedAt = Date.now();
   writeEndpoints(registry);
 
-  console.log(`[Endpoint Registry] Hot-updated ${key} -> ${ep.method} ${ep.url}`);
+  console.log(`[Endpoint Registry] Hot-updated ${key} -> ${ep.method} ${ep.url} (cooldown reset: lastAlertedAt=0)`);
   return ep;
 }
 
@@ -167,32 +167,26 @@ async function reportFailure({ key, status, url, error }) {
  * Broadcast step-by-step Developer Capture Guide via dynamic Multi-Bot Manager
  */
 async function sendTelegramAlert({ key, status, url, error, captureGuide = {} }) {
-  const escapeHtml = (str) =>
-    String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
   const msg = [
-    `🚨 <b>[Vault Alert] LinkedIn Endpoint Degraded!</b>`,
+    `🚨 *[Vault Alert] LinkedIn Endpoint Degraded!*`,
     ``,
-    `<b>Endpoint Key:</b> <code>${escapeHtml(key)}</code>`,
-    `<b>HTTP Status:</b> <code>${escapeHtml(status || 'Error')}</code>`,
-    `<b>Error:</b> <code>${escapeHtml(error || 'Unexpected Failure')}</code>`,
-    `<b>Current URL:</b>`,
-    `<code>${escapeHtml(url || '')}</code>`,
+    `*Endpoint Key:* \`${key}\``,
+    `*HTTP Status:* \`${status || 'Error'}\``,
+    `*Error:* \`${error || 'Unexpected Failure'}\``,
+    `*Current URL:*`,
+    `\`${url || ''}\``,
     ``,
-    `🛠️ <b>Developer F12 Capture Guide:</b>`,
-    `1. <b>Page URL:</b> ${escapeHtml(captureGuide.pageUrl || 'https://www.linkedin.com/')}`,
-    `2. <b>Network Filter:</b> <code>${escapeHtml(captureGuide.networkFilter || key)}</code>`,
-    `3. <b>Action:</b> ${escapeHtml(captureGuide.action || 'Perform action on LinkedIn')}`,
-    `4. <b>Copy Target:</b> ${escapeHtml(captureGuide.copyTarget || 'Request URL')}`,
+    `🛠️ *Developer F12 Capture Guide:*`,
+    `1. *Page URL:* ${captureGuide.pageUrl || 'https://www.linkedin.com/'}`,
+    `2. *Network Filter:* \`${captureGuide.networkFilter || key}\``,
+    `3. *Action:* ${captureGuide.action || 'Perform action on LinkedIn'}`,
+    `4. *Copy Target:* ${captureGuide.copyTarget || 'Request URL'}`,
     ``,
-    `👉 <b>Hot-Fix in Vault Admin UI:</b>`,
+    `👉 *Hot-Fix in Vault Admin UI:*`,
     `https://vault.api.crafture.space/`,
   ].join('\n');
 
-  return await alertBotManager.broadcastAlert(msg);
+  return await alertBotManager.broadcastAlert(msg, { parse_mode: 'Markdown' });
 }
 
 module.exports = {
