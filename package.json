@@ -1,9 +1,9 @@
 {
   "name": "outfox-vault",
   "version": "1.0.0",
-  "type": "module",
   "description": "Production-grade, zero-dependency Multi-Account API Key Vault, Load Balancer & Auto-Failover Proxy on Cloudflare Workers with Workers KV.",
   "main": "src/worker.js",
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
@@ -16,6 +16,7 @@
     "node": ">=18.0.0"
   },
   "keywords": [
+    "lead-generation",
     "cloudflare-workers",
     "workers-kv",
     "apollo-api",
@@ -23,7 +24,8 @@
     "apify",
     "load-balancer",
     "key-vault",
-    "proxy-pool"
+    "proxy-pool",
+    "outreach"
   ],
   "author": "OutFox",
   "license": "MIT"

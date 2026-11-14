@@ -1,12 +1,15 @@
 name = "vault-api"
 main = "src/worker.js"
 compatibility_date = "2026-11-01"
-
+routes = [
+  { pattern = "vault.api.crafture.space", custom_domain = true }
+]
 [[kv_namespaces]]
 binding = "VAULT_KV"
-id = "<YOUR_KV_NAMESPACE_ID>"
+id = "037fcf08fa3749c9814f4238f06da1d1"
 
 [vars]
 API_KEY = "007_haiSecret"
 ADMIN_API_KEY = "007_haiSecret"
 CLIENT_API_KEY = "007_haiSecret"
+
