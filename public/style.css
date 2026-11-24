@@ -1222,7 +1222,8 @@ code, pre {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 16px;
+  overflow-y: auto;
 }
 
 .modal-docs-backdrop {
@@ -1241,7 +1242,7 @@ code, pre {
   box-shadow: var(--shadow-xl);
   width: 100%;
   max-width: 880px;
-  max-height: min(90vh, 760px);
+  max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1260,9 +1261,10 @@ code, pre {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 26px;
+  padding: 16px 22px;
   border-bottom: 1px solid var(--border);
   background: #fdfefe;
+  flex-shrink: 0;
 }
 
 .modal-header-info {
@@ -1317,27 +1319,52 @@ code, pre {
 }
 
 .modal-docs-body {
-  padding: 22px 26px;
+  padding: 20px 24px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   flex: 1 1 auto;
   min-height: 0;
+  max-height: calc(100vh - 165px);
+  scrollbar-width: thin;
 }
 
 .modal-docs-footer {
-  padding: 16px 26px;
+  padding: 14px 24px;
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 12px;
-  background: #fdfefe;
+  background: var(--surface-white);
   flex-shrink: 0;
   position: sticky;
   bottom: 0;
-  z-index: 5;
+  z-index: 30;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.btn-nav-passkey {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-white);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-nav-passkey:hover {
+  background: var(--surface-subtle);
+  color: var(--primary);
+  border-color: var(--primary-border);
 }
 
 .docs-spec-banner {

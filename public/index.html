@@ -29,6 +29,9 @@
           <button type="submit" id="btn-auth-unlock" class="btn-orange btn-full">
             Unlock Vault
           </button>
+          <button type="button" id="btn-auth-default" class="btn-secondary btn-full" style="margin-top: 10px; font-weight: 600;">
+            🔑 Use Default Passkey (007_haiSecret)
+          </button>
         </form>
         <div class="auth-hint">
           <span>Protected endpoint</span> · <code>https://vault.api.crafture.space/</code>
@@ -48,7 +51,10 @@
               <p class="modal-subtitle">Instant remote propagation to connected OutFox extensions</p>
             </div>
           </div>
-          <button type="button" class="modal-close-btn" id="btn-close-edit" aria-label="Close">✕</button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn-orange" id="btn-save-endpoint-header" style="font-weight: 700; padding: 7px 16px; font-size: 12.5px; box-shadow: 0 2px 6px rgba(255,107,0,0.25);">💾 Save</button>
+            <button type="button" class="modal-close-btn" id="btn-close-edit" aria-label="Close">✕</button>
+          </div>
         </div>
         <form id="form-edit-endpoint" class="edit-endpoint-form">
           <div class="modal-docs-body" style="gap: 14px;">
@@ -84,6 +90,19 @@
               </div>
             </div>
             <div class="form-group">
+              <label class="form-label">Strategy (mode)</label>
+              <select id="edit-endpoint-mode" class="auth-input" style="cursor: pointer;">
+                <option value="sdui_first">SDUI First (Default)</option>
+                <option value="dom_first">DOM First (Emergency Fallback)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payload Meta (JSON)</label>
+              <textarea id="edit-endpoint-meta" class="key-textarea" rows="4" style="min-height: 80px; font-family: var(--font-mono); font-size: 11.5px; margin-bottom: 0;" placeholder='{\n  "screenId": "com.linkedin...",\n  "queryName": "...",\n  "requestedStateKeys": [],\n  "extraPayload": {}\n}'></textarea>
+              <div id="edit-meta-error" style="display: none; margin-top: 5px; font-size: 11.5px; color: #e53935; font-weight: 500;"></div>
+              <div class="form-hint" style="margin-top: 5px; font-size: 11px; color: var(--text-secondary); line-height: 1.4;">Supported keys: <code>screenId</code>, <code>queryName</code>, <code>requestedStateKeys</code>, <code>extraPayload</code>, <code>headers</code>, <code>sduiid</code>, <code>inviterActionType</code>, <code>reactionSource</code></div>
+            </div>
+            <div class="form-group">
               <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer;">
                 <input type="checkbox" id="edit-reset-healthy" checked />
                 <span>Reset status to <b>🟢 Healthy</b> upon saving</span>
@@ -110,7 +129,10 @@
               <p class="modal-subtitle">Broadcasts instant degradation alerts & F12 capture guides</p>
             </div>
           </div>
-          <button type="button" class="modal-close-btn" id="btn-close-add-bot" aria-label="Close">✕</button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn-orange" id="btn-save-bot-header" style="font-weight: 700; padding: 7px 16px; font-size: 12.5px; box-shadow: 0 2px 6px rgba(255,107,0,0.25);">➕ Add</button>
+            <button type="button" class="modal-close-btn" id="btn-close-add-bot" aria-label="Close">✕</button>
+          </div>
         </div>
         <form id="form-add-bot">
           <div class="modal-docs-body" style="gap: 14px;">
@@ -297,6 +319,9 @@
             <span class="live-dot"></span>
             <span id="server-status-pill">vault.api.crafture.space</span>
           </div>
+          <button type="button" class="btn-nav-passkey" id="btn-nav-passkey" title="Active Admin Passkey (Click to reset/change)">
+            🔑 <span id="nav-passkey-display">007_haiSecret</span>
+          </button>
           <button type="button" class="btn-nav-lock" id="btn-lock-vault" title="Lock Admin Dashboard">
             🔒 Lock
           </button>

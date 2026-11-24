@@ -55,6 +55,22 @@ function updateEndpoint(key, updates = {}) {
   if (updates.name !== undefined) ep.name = updates.name.trim();
   if (updates.sduiid !== undefined) ep.sduiid = updates.sduiid.trim();
   if (updates.queryId !== undefined) ep.queryId = updates.queryId.trim();
+  if (updates.mode !== undefined) {
+    ep.mode = updates.mode === 'dom_first' ? 'dom_first' : 'sdui_first';
+  }
+  if (updates.meta !== undefined) {
+    if (typeof updates.meta === 'string') {
+      try {
+        ep.meta = updates.meta.trim() ? JSON.parse(updates.meta) : {};
+      } catch (_) {
+        ep.meta = {};
+      }
+    } else if (updates.meta && typeof updates.meta === 'object') {
+      ep.meta = updates.meta;
+    } else {
+      ep.meta = {};
+    }
+  }
 
   // Reset health status and reset 12h alert cooldown whenever edited
   ep.status = 'healthy';

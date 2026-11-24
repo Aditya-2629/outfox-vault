@@ -112,18 +112,47 @@ const LANG_TITLES = {
 // =========================================================================
 function getAdminPasskey() {
   const val = localStorage.getItem('vault_admin_passkey');
-  if (val && typeof val === 'string' && val.trim()) {
+  if (val && typeof val === 'string' && val.trim() && val !== 'null' && val !== 'undefined') {
     return val.trim();
   }
   return '007_haiSecret';
 }
 
 function setAdminPasskey(key) {
-  localStorage.setItem('vault_admin_passkey', key);
+  const clean = (key || '007_haiSecret').trim();
+  localStorage.setItem('vault_admin_passkey', clean);
+  updatePasskeyDisplay();
 }
 
 function clearAdminPasskey() {
   localStorage.removeItem('vault_admin_passkey');
+  updatePasskeyDisplay();
+}
+
+function updatePasskeyDisplay() {
+  const pill = document.getElementById('nav-passkey-display');
+  if (pill) {
+    pill.textContent = getAdminPasskey();
+  }
+}
+
+async function authFetch(url, options = {}) {
+  let passkey = getAdminPasskey();
+  const headers = {
+    'x-api-key': passkey,
+    'x-admin-key': passkey,
+    ...(options.headers || {}),
+  };
+
+  let res = await fetch(url, { ...options, headers });
+  if (res.status === 401 && passkey !== '007_haiSecret') {
+    console.warn('[Vault Auth] 401 received with passkey. Auto-resetting to 007_haiSecret...');
+    setAdminPasskey('007_haiSecret');
+    headers['x-api-key'] = '007_haiSecret';
+    headers['x-admin-key'] = '007_haiSecret';
+    res = await fetch(url, { ...options, headers });
+  }
+  return res;
 }
 
 function showAuthOverlay(msg = '') {
@@ -153,7 +182,7 @@ function hideAuthOverlay() {
 
 async function verifyAndUnlock(passkey) {
   try {
-    const res = await fetch('/admin/vault/status', {
+    const res = await authFetch('/admin/vault/status', {
       headers: {
         'x-admin-key': passkey,
         'x-api-key': passkey,
@@ -171,7 +200,7 @@ async function verifyAndUnlock(passkey) {
         return true;
       }
     }
-    showAuthOverlay('Invalid Admin Passkey. Please verify your credentials.');
+    showAuthOverlay('Invalid Admin Passkey. Please verify your credentials or click "Use Default Passkey".');
     return false;
   } catch (err) {
     showAuthOverlay(`Connection error: ${err.message}`);
@@ -183,14 +212,8 @@ async function verifyAndUnlock(passkey) {
 // 2. DATA FETCHING & UI RENDERING
 // =========================================================================
 async function fetchVaultStatus() {
-  const passkey = getAdminPasskey();
   try {
-    const res = await fetch('/admin/vault/status', {
-      headers: {
-        'x-admin-key': passkey,
-        'x-api-key': passkey,
-      },
-    });
+    const res = await authFetch('/admin/vault/status');
 
     if (res.status === 401) {
       showAuthOverlay('Session expired or passkey invalid. Please re-authenticate.');
@@ -209,14 +232,8 @@ async function fetchVaultStatus() {
 }
 
 async function fetchEndpoints() {
-  const passkey = getAdminPasskey();
   try {
-    const res = await fetch('/api/endpoints', {
-      headers: {
-        'x-api-key': passkey,
-        'x-admin-key': passkey,
-      },
-    });
+    const res = await authFetch('/api/endpoints');
     if (res.ok) {
       const json = await res.json();
       if (json.ok) {
@@ -230,14 +247,8 @@ async function fetchEndpoints() {
 }
 
 async function fetchAlertBots() {
-  const passkey = getAdminPasskey();
   try {
-    const res = await fetch('/api/alert-bots', {
-      headers: {
-        'x-api-key': passkey,
-        'x-admin-key': passkey,
-      },
-    });
+    const res = await authFetch('/api/alert-bots');
     if (res.ok) {
       const json = await res.json();
       if (json.ok) {
@@ -362,13 +373,8 @@ function renderUI() {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
       if (confirm('Are you sure you want to remove this account key from the pool?')) {
-        const passkey = getAdminPasskey();
-        await fetch(`/admin/vault/key?provider=${activeProvider}&id=${id}`, {
+        await authFetch(`/admin/vault/key?provider=${activeProvider}&id=${id}`, {
           method: 'DELETE',
-          headers: {
-            'x-admin-key': passkey,
-            'x-api-key': passkey,
-          },
         });
         fetchVaultStatus();
       }
@@ -380,14 +386,9 @@ function renderUI() {
     btn.addEventListener('click', async () => {
       btn.textContent = 'Testing...';
       btn.disabled = true;
-      const passkey = getAdminPasskey();
-      await fetch('/admin/vault/test', {
+      await authFetch('/admin/vault/test', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': passkey,
-          'x-api-key': passkey,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: activeProvider }),
       });
       fetchVaultStatus();
@@ -488,6 +489,10 @@ function renderLinkedInWorkspace() {
           ${latencyTag}
           ${sduiTag}
           ${queryIdTag}
+          <span style="margin-left: auto; display: flex; gap: 6px; align-items: center;">
+            ${ep.mode === 'dom_first' ? '<span style="background: rgba(255,107,0,0.15); color: #ff6b00; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700;">DOM First</span>' : '<span style="background: rgba(0,200,83,0.1); color: #00c853; padding: 2px 6px; border-radius: 4px; font-size: 11px;">SDUI First</span>'}
+            ${ep.meta && typeof ep.meta === 'object' && Object.keys(ep.meta).length > 0 ? `<span style="background: rgba(41,121,255,0.12); color: #2979ff; padding: 2px 6px; border-radius: 4px; font-size: 11px;">JSON Meta (${Object.keys(ep.meta).length})</span>` : ''}
+          </span>
         </div>
 
         <div class="capture-guide-box">
@@ -582,15 +587,10 @@ function renderBotsGrid() {
       const id = btn.dataset.id;
       const shouldEnable = btn.dataset.enabled === 'true';
       btn.disabled = true;
-      const passkey = getAdminPasskey();
       try {
-        const res = await fetch(`/api/alert-bots/${id}`, {
+        const res = await authFetch(`/api/alert-bots/${id}`, {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': passkey,
-            'x-admin-key': passkey,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ enabled: shouldEnable }),
         });
         const json = await res.json();
@@ -610,14 +610,9 @@ function renderBotsGrid() {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
       if (confirm('Are you sure you want to remove this Telegram Alert Bot?')) {
-        const passkey = getAdminPasskey();
         try {
-          const res = await fetch(`/api/alert-bots/${id}`, {
+          const res = await authFetch(`/api/alert-bots/${id}`, {
             method: 'DELETE',
-            headers: {
-              'x-api-key': passkey,
-              'x-admin-key': passkey,
-            },
           });
           const json = await res.json();
           if (json.ok) {
@@ -628,6 +623,9 @@ function renderBotsGrid() {
         } catch (err) {
           alert(`Request failed: ${err.message}`);
         }
+      }
+    });
+  });
       }
     });
   });
@@ -661,6 +659,20 @@ function openEditModal(key) {
   document.getElementById('edit-endpoint-url').value = ep.url || '';
   document.getElementById('edit-endpoint-sduiid').value = ep.sduiid || '';
   document.getElementById('edit-endpoint-queryid').value = ep.queryId || '';
+  const modeSelect = document.getElementById('edit-endpoint-mode');
+  if (modeSelect) modeSelect.value = ep.mode === 'dom_first' ? 'dom_first' : 'sdui_first';
+  const metaInput = document.getElementById('edit-endpoint-meta');
+  if (metaInput) {
+    metaInput.value = ep.meta && typeof ep.meta === 'object' && Object.keys(ep.meta).length > 0 ? JSON.stringify(ep.meta, null, 2) : '';
+    metaInput.style.borderColor = '';
+  }
+  const metaError = document.getElementById('edit-meta-error');
+  if (metaError) {
+    metaError.style.display = 'none';
+    metaError.textContent = '';
+  }
+  const saveBtn = document.getElementById('btn-save-endpoint');
+  if (saveBtn) saveBtn.disabled = false;
   document.getElementById('edit-reset-healthy').checked = true;
 
   const modal = document.getElementById('modal-edit-endpoint');
@@ -731,12 +743,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Passkey Default Reset Button in Overlay
+  const btnAuthDefault = document.getElementById('btn-auth-default');
+  if (btnAuthDefault) {
+    btnAuthDefault.addEventListener('click', async () => {
+      setAdminPasskey('007_haiSecret');
+      await verifyAndUnlock('007_haiSecret');
+    });
+  }
+
+  // Top Navbar Passkey Pill (Click to change/reset)
+  const btnNavPasskey = document.getElementById('btn-nav-passkey');
+  if (btnNavPasskey) {
+    btnNavPasskey.addEventListener('click', async () => {
+      const current = getAdminPasskey();
+      const entered = prompt('Admin Passkey (default: 007_haiSecret):', current);
+      if (entered !== null) {
+        const clean = entered.trim() || '007_haiSecret';
+        await verifyAndUnlock(clean);
+      }
+    });
+  }
+
   // Lock Vault Button
   const btnLock = document.getElementById('btn-lock-vault');
   if (btnLock) {
     btnLock.addEventListener('click', () => {
       clearAdminPasskey();
-      showAuthOverlay();
+      showAuthOverlay('Vault locked. Enter passkey to unlock.');
     });
   }
 
@@ -760,6 +794,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const backdropEdit = document.getElementById('modal-edit-backdrop');
   if (backdropEdit) backdropEdit.addEventListener('click', closeEditModal);
 
+  // Header Save Button for Edit Endpoint Modal
+  const btnSaveEndpointHeader = document.getElementById('btn-save-endpoint-header');
+  if (btnSaveEndpointHeader) {
+    btnSaveEndpointHeader.addEventListener('click', () => {
+      const form = document.getElementById('form-edit-endpoint');
+      if (form) {
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else {
+          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        }
+      }
+    });
+  }
+
   // Add Bot Modal Listeners
   const btnOpenAddBot = document.getElementById('btn-open-add-bot');
   if (btnOpenAddBot) btnOpenAddBot.addEventListener('click', openAddBotModal);
@@ -772,6 +821,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const backdropAddBot = document.getElementById('modal-add-bot-backdrop');
   if (backdropAddBot) backdropAddBot.addEventListener('click', closeAddBotModal);
+
+  // Header Save Button for Add Bot Modal
+  const btnSaveBotHeader = document.getElementById('btn-save-bot-header');
+  if (btnSaveBotHeader) {
+    btnSaveBotHeader.addEventListener('click', () => {
+      const form = document.getElementById('form-add-bot');
+      if (form) {
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else {
+          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        }
+      }
+    });
+  }
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -800,18 +864,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const saveBtn = document.getElementById('btn-save-bot');
-      saveBtn.textContent = 'Registering...';
-      saveBtn.disabled = true;
-      const passkey = getAdminPasskey();
+      const saveBtnHeader = document.getElementById('btn-save-bot-header');
+      if (saveBtn) {
+        saveBtn.textContent = 'Registering...';
+        saveBtn.disabled = true;
+      }
+      if (saveBtnHeader) saveBtnHeader.disabled = true;
 
       try {
-        const res = await fetch('/api/alert-bots', {
+        const res = await authFetch('/api/alert-bots', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': passkey,
-            'x-admin-key': passkey,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ label, botToken, chatId }),
         });
 
@@ -832,8 +895,11 @@ document.addEventListener('DOMContentLoaded', () => {
           errorBox.style.display = 'block';
         }
       } finally {
-        saveBtn.textContent = '➕ Add Bot';
-        saveBtn.disabled = false;
+        if (saveBtn) {
+          saveBtn.textContent = '➕ Add Bot';
+          saveBtn.disabled = false;
+        }
+        if (saveBtnHeader) saveBtnHeader.disabled = false;
       }
     });
   }
@@ -844,16 +910,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnTestAlerts.addEventListener('click', async () => {
       btnTestAlerts.textContent = '🔔 Broadcasting...';
       btnTestAlerts.disabled = true;
-      const passkey = getAdminPasskey();
 
       try {
-        const res = await fetch('/api/alert-bots/test', {
+        const res = await authFetch('/api/alert-bots/test', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': passkey,
-            'x-admin-key': passkey,
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
 
         const json = await res.json();
@@ -881,32 +942,84 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Live JSON validation for Edit Endpoint Payload Meta
+  const metaInput = document.getElementById('edit-endpoint-meta');
+  const metaError = document.getElementById('edit-meta-error');
+  const saveBtn = document.getElementById('btn-save-endpoint');
+
+  function validateMetaJson() {
+    if (!metaInput) return true;
+    const val = metaInput.value.trim();
+    if (!val) {
+      if (metaError) metaError.style.display = 'none';
+      metaInput.style.borderColor = '';
+      if (saveBtn) saveBtn.disabled = false;
+      return true;
+    }
+    try {
+      const parsed = JSON.parse(val);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        throw new Error('Meta must be a valid JSON object {...}');
+      }
+      if (metaError) metaError.style.display = 'none';
+      metaInput.style.borderColor = '#00c853';
+      if (saveBtn) saveBtn.disabled = false;
+      return true;
+    } catch (err) {
+      if (metaError) {
+        metaError.textContent = '⚠️ Invalid JSON: ' + err.message;
+        metaError.style.display = 'block';
+      }
+      metaInput.style.borderColor = '#e53935';
+      if (saveBtn) saveBtn.disabled = true;
+      return false;
+    }
+  }
+
+  if (metaInput) {
+    metaInput.addEventListener('input', validateMetaJson);
+  }
+
   // Edit Endpoint Form Submit
   const formEdit = document.getElementById('form-edit-endpoint');
   if (formEdit) {
     formEdit.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!validateMetaJson()) {
+        alert('Cannot save: Payload Meta contains invalid JSON.');
+        return;
+      }
       const key = document.getElementById('edit-endpoint-key').value;
       const name = document.getElementById('edit-endpoint-name').value;
       const method = document.getElementById('edit-endpoint-method').value;
       const url = document.getElementById('edit-endpoint-url').value;
       const sduiid = document.getElementById('edit-endpoint-sduiid').value;
       const queryId = document.getElementById('edit-endpoint-queryid').value;
+      const mode = document.getElementById('edit-endpoint-mode')?.value || 'sdui_first';
+      const metaRaw = (document.getElementById('edit-endpoint-meta')?.value || '').trim();
+      let meta = {};
+      if (metaRaw) {
+        try {
+          meta = JSON.parse(metaRaw);
+        } catch (e) {
+          alert('Invalid JSON in Payload Metadata: ' + e.message);
+          return;
+        }
+      }
 
       const saveBtn = document.getElementById('btn-save-endpoint');
-      saveBtn.textContent = 'Saving...';
-      saveBtn.disabled = true;
-      const passkey = getAdminPasskey();
+      const saveBtnHeader = document.getElementById('btn-save-endpoint-header');
+      if (saveBtn) {
+        saveBtn.textContent = 'Saving...';
+        saveBtn.disabled = true;
+      }
+      if (saveBtnHeader) saveBtnHeader.disabled = true;
 
       try {
-        const res = await fetch(`/api/endpoints/${encodeURIComponent(key)}`, {
+        const res = await authFetch(`/api/endpoints/${encodeURIComponent(key)}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': passkey,
-            'x-admin-key': passkey,
-          },
-          body: JSON.stringify({ name, method, url, sduiid, queryId }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, method, url, sduiid, queryId, mode, meta }),
         });
 
         const json = await res.json();
@@ -920,8 +1033,11 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         alert(`Update request failed: ${err.message}`);
       } finally {
-        saveBtn.textContent = '💾 Save & Hot-Update';
-        saveBtn.disabled = false;
+        if (saveBtn) {
+          saveBtn.textContent = '💾 Save & Hot-Update';
+          saveBtn.disabled = false;
+        }
+        if (saveBtnHeader) saveBtnHeader.disabled = false;
       }
     });
   }
@@ -933,7 +1049,6 @@ document.addEventListener('DOMContentLoaded', () => {
       btnAudit.textContent = '🩺 Triggering Audit...';
       btnAudit.disabled = true;
       isAuditing = true;
-      const passkey = getAdminPasskey();
 
       const auditTag = document.getElementById('audit-status-indicator');
       if (auditTag) {
@@ -942,13 +1057,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        const res = await fetch('/api/endpoints/audit-request', {
+        const res = await authFetch('/api/endpoints/audit-request', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': passkey,
-            'x-admin-key': passkey,
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
         const json = await res.json();
         if (json.ok) {
@@ -1054,16 +1165,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       btnAddKeys.textContent = 'Adding to Pool...';
       btnAddKeys.disabled = true;
-      const passkey = getAdminPasskey();
 
       try {
-        const res = await fetch('/admin/vault/add', {
+        const res = await authFetch('/admin/vault/add', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-key': passkey,
-            'x-api-key': passkey,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ provider: activeProvider, keys: raw }),
         });
         const json = await res.json();
@@ -1089,16 +1195,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnTestAll.addEventListener('click', async () => {
       btnTestAll.textContent = '⚡ Running Live Tests...';
       btnTestAll.disabled = true;
-      const passkey = getAdminPasskey();
 
       try {
-        const res = await fetch('/admin/vault/test', {
+        const res = await authFetch('/admin/vault/test', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-key': passkey,
-            'x-api-key': passkey,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ provider: activeProvider }),
         });
         const json = await res.json();
@@ -1120,14 +1221,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnCleanPool) {
     btnCleanPool.addEventListener('click', async () => {
       if (confirm(`Remove all dead, invalid, and exhausted accounts from ${PROVIDER_NAMES[activeProvider]} pool?`)) {
-        const passkey = getAdminPasskey();
-        const res = await fetch('/admin/vault/clean', {
+        const res = await authFetch('/admin/vault/clean', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-key': passkey,
-            'x-api-key': passkey,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ provider: activeProvider }),
         });
         const json = await res.json();
@@ -1140,6 +1236,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Initial Fetch & Periodic Sync
+  updatePasskeyDisplay();
   fetchVaultStatus();
   fetchEndpoints();
   fetchAlertBots();
